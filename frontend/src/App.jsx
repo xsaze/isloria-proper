@@ -52,7 +52,7 @@ function App() {
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px', borderRadius: '5px' }}>
         Status: {isConnected ? '✅ Connected' : '❌ Disconnected'}
       </div>
-      <GameCanvas gameState={gameState} frames={frames} />
+      <GameCanvas gameState={gameState} frames={frames} socket={socket} />
     </>
   );
 }
