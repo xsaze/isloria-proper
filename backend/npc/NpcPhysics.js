@@ -24,24 +24,45 @@ export class NpcPhysics {
      * @param {Object} npc - NPC data object
      * @param {Map} allNpcs - Map of all NPCs (for collision detection)
      * @param {number} deltaTime - Time since last frame
+     * @param {IslandManager} islandManager - Island manager for walkability checks
      */
-    update(npcId, npc, allNpcs, deltaTime) {
+    update(npcId, npc, allNpcs, deltaTime, islandManager) {
         // Calculate new position
         const newX = npc.x + npc.vx * deltaTime;
         const newY = npc.y + npc.vy * deltaTime;
         const newPos = { x: newX, y: newY };
 
+        // Check walkability (if islandManager is available)
+        let isWalkable = true;
+        if (islandManager) {
+            isWalkable = islandManager.isPositionWalkable(newX, newY);
+        }
+
         // Check for collisions with other NPCs
         const collisions = checkNPCCollisions(newPos, npcId, allNpcs, npc.radius, true);
 
-        // Apply boundaries
-        let clampedX = clamp(newX, gameConfig.boundaries.minX, gameConfig.boundaries.maxX);
-        let clampedY = clamp(newY, gameConfig.boundaries.minY, gameConfig.boundaries.maxY);
+        // Get walkable boundaries (or use fallback)
+        let boundaries = gameConfig.boundaries;
+        if (islandManager) {
+            const walkableBounds = islandManager.getWalkableBoundaries();
+            if (walkableBounds) {
+                boundaries = walkableBounds;
+            }
+        }
 
-        // Handle collisions
-        if (collisions) {
+        // Apply boundaries
+        let clampedX = clamp(newX, boundaries.minX, boundaries.maxX);
+        let clampedY = clamp(newY, boundaries.minY, boundaries.maxY);
+
+        // Handle walkability constraint
+        if (!isWalkable) {
+            // Position is not walkable, treat it like hitting a boundary
+            this.handleWalkabilityBounce(npc);
+        } else if (collisions) {
+            // Handle collisions with other NPCs
             this.handleCollisions(npcId, npc, collisions, clampedX, clampedY);
         } else {
+            // No collisions, normal movement
             this.handleNoCollision(npcId, npc, newX, newY, clampedX, clampedY);
         }
     }
@@ -122,6 +143,27 @@ export class NpcPhysics {
         // Update position to separated position
         npc.x = separatedX;
         npc.y = separatedY;
+    }
+
+    /**
+     * Handle case when NPC tries to walk on non-walkable terrain
+     */
+    handleWalkabilityBounce(npc) {
+        // Pick new random direction
+        const directions = ['NE', 'NW', 'SE', 'SW'];
+        const randomDir = directions[Math.floor(Math.random() * directions.length)];
+        const dirIndex = { 'NE': 0, 'NW': 1, 'SE': 2, 'SW': 3 }[randomDir];
+
+        npc.direction = randomDir;
+
+        switch (dirIndex) {
+            case 0: npc.vx = npc.speed; npc.vy = -npc.speed; break;
+            case 1: npc.vx = -npc.speed; npc.vy = -npc.speed; break;
+            case 2: npc.vx = npc.speed; npc.vy = npc.speed; break;
+            case 3: npc.vx = -npc.speed; npc.vy = npc.speed; break;
+        }
+
+        // Don't update position (stay at current position)
     }
 
     /**

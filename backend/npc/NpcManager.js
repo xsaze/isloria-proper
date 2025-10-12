@@ -36,8 +36,9 @@ export class NpcManager {
     /**
      * Update all NPCs (called every frame)
      * @param {number} deltaTime - Time since last frame (in frames, typically 1.0 at 60 FPS)
+     * @param {IslandManager} islandManager - Island manager for walkability checks
      */
-    update(deltaTime) {
+    update(deltaTime, islandManager) {
         const currentTime = Date.now();
 
         // Update AI for all NPCs
@@ -45,9 +46,9 @@ export class NpcManager {
             this.npcAI.update(npcId, npc, currentTime);
         }
 
-        // Update physics for all NPCs (handles collisions)
+        // Update physics for all NPCs (handles collisions and walkability)
         for (const [npcId, npc] of this.npcs.entries()) {
-            this.npcPhysics.update(npcId, npc, this.npcs, deltaTime);
+            this.npcPhysics.update(npcId, npc, this.npcs, deltaTime, islandManager);
         }
     }
 

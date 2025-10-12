@@ -9,6 +9,9 @@ import {
   Sprite
 } from 'pixi.js'
 import { Npc } from "./Npc";
+import { IslandRenderer } from "./IslandRenderer";
+import { tileLoader } from '../helpers/TileLoader';
+import { useEffect, useState } from 'react';
 
 
 extend({
@@ -22,8 +25,26 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
   console.log("GameCanvas rendering with frames:", frames);
   console.log("GameCanvas gameState:", gameState);
 
-  // Get MC from backend gameState
+  // Track tile loading state
+  const [tilesLoaded, setTilesLoaded] = useState(false);
+
+  // Load tiles on mount
+  useEffect(() => {
+    const loadTiles = async () => {
+      try {
+        await tileLoader.load();
+        setTilesLoaded(true);
+      } catch (error) {
+        console.error('Failed to load tiles:', error);
+      }
+    };
+
+    loadTiles();
+  }, []);
+
+  // Get MC and island data from backend gameState
   const mc = gameState?.mc || 0;
+  const islandData = gameState?.island || null;
 
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
@@ -128,7 +149,17 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
       {/* Game Canvas */}
       <Application resizeTo={window}>
-        <container>
+        <container sortableChildren>
+          {/* Render Island (if tiles are loaded) */}
+          {tilesLoaded && islandData && (
+            <IslandRenderer
+              islandData={islandData}
+              x={0}
+              y={0}
+            />
+          )}
+
+          {/* Render NPCs on top of island */}
           {npcs.map(([npcId, npcData]) => (
             <Npc
               key={npcId}

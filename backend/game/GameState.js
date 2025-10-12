@@ -1,3 +1,5 @@
+import { IslandManager } from '../island/IslandManager.js';
+
 /**
  * Manages the global game state
  */
@@ -8,6 +10,8 @@ export class GameState {
         this.startTime = Date.now();
         this.frameCount = 0;
         this.mc = 0;  // MC (money/currency) state
+        this.islandManager = new IslandManager();
+        this.islandManager.initialize(this.mc);  // Generate initial island
     }
 
     /**
@@ -17,6 +21,7 @@ export class GameState {
         return {
             npcs: this.npcManager.getNpcsAsObject(),
             mc: this.mc,
+            island: this.islandManager.getIslandData(),
             frameCount: this.frameCount,
             timestamp: Date.now()
         };
@@ -27,7 +32,7 @@ export class GameState {
      */
     update(deltaTime) {
         this.frameCount++;
-        this.npcManager.update(deltaTime);
+        this.npcManager.update(deltaTime, this.islandManager);
     }
 
     /**
@@ -48,6 +53,10 @@ export class GameState {
      */
     increaseMc(amount = 10000) {
         this.mc += amount;
+        if (this.islandManager.shouldRegenerate(this.mc)) {
+            this.islandManager.regenerateIsland(this.mc);
+            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        }
         console.log(`💰 MC increased by ${amount}. New MC: ${this.mc}`);
     }
 
@@ -56,6 +65,10 @@ export class GameState {
      */
     decreaseMc(amount = 10000) {
         this.mc -= amount;
+        if (this.islandManager.shouldRegenerate(this.mc)) {
+            this.islandManager.regenerateIsland(this.mc);
+            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        }
         console.log(`💸 MC decreased by ${amount}. New MC: ${this.mc}`);
     }
 
@@ -64,6 +77,10 @@ export class GameState {
      */
     resetMc() {
         this.mc = 0;
+        if (this.islandManager.shouldRegenerate(this.mc)) {
+            this.islandManager.regenerateIsland(this.mc);
+            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        }
         console.log(`🔄 MC reset to 0`);
     }
 
@@ -72,6 +89,10 @@ export class GameState {
      */
     setMc(value) {
         this.mc = value;
+        if (this.islandManager.shouldRegenerate(this.mc)) {
+            this.islandManager.regenerateIsland(this.mc);
+            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        }
         console.log(`💰 MC set to ${value}`);
     }
 }
