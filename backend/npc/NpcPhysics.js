@@ -60,7 +60,7 @@ export class NpcPhysics {
             this.handleWalkabilityBounce(npc);
         } else if (collisions) {
             // Handle collisions with other NPCs
-            this.handleCollisions(npcId, npc, collisions, clampedX, clampedY);
+            this.handleCollisions(npcId, npc, collisions, clampedX, clampedY, boundaries);
         } else {
             // No collisions, normal movement
             this.handleNoCollision(npcId, npc, newX, newY, clampedX, clampedY);
@@ -70,7 +70,7 @@ export class NpcPhysics {
     /**
      * Handle NPC collisions
      */
-    handleCollisions(npcId, npc, collisions, clampedX, clampedY) {
+    handleCollisions(npcId, npc, collisions, clampedX, clampedY, boundaries) {
         const currentTime = Date.now();
 
         // Increment stuck counter
@@ -89,8 +89,8 @@ export class NpcPhysics {
         let separatedY = npc.y + separationForce.y;
 
         // Clamp to boundaries
-        separatedX = clamp(separatedX, gameConfig.boundaries.minX, gameConfig.boundaries.maxX);
-        separatedY = clamp(separatedY, gameConfig.boundaries.minY, gameConfig.boundaries.maxY);
+        separatedX = clamp(separatedX, boundaries.minX, boundaries.maxX);
+        separatedY = clamp(separatedY, boundaries.minY, boundaries.maxY);
 
         // Check if stuck for too long
         if (stuckCount > gameConfig.ai.STUCK_THRESHOLD) {
@@ -99,8 +99,8 @@ export class NpcPhysics {
             separatedY += separationForce.y > 0 ? escapeBoost : -escapeBoost;
 
             // Clamp again
-            separatedX = clamp(separatedX, gameConfig.boundaries.minX, gameConfig.boundaries.maxX);
-            separatedY = clamp(separatedY, gameConfig.boundaries.minY, gameConfig.boundaries.maxY);
+            separatedX = clamp(separatedX, boundaries.minX, boundaries.maxX);
+            separatedY = clamp(separatedY, boundaries.minY, boundaries.maxY);
 
             // Emergency escape
             if (stuckCount > gameConfig.ai.STUCK_ESCAPE_THRESHOLD) {

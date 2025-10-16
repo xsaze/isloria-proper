@@ -18,7 +18,7 @@ export const NPC_STATES = {
     stag: ['idle', 'walk', 'run'],
     boar: ['idle', 'run'],
     player: ['idle', 'walk'],
-    wolf: ['idle', 'run']  // Add more as needed
+    wolf: ['idle', 'walk']  // Must match SPRITE_SHEETS configuration
 };
 
 // Collision radii for different NPC types (base size, will be multiplied by scale)

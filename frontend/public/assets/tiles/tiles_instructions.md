@@ -20,4 +20,10 @@ Random walk with some parameters:
 
 - Keep a relatively square shape while generating the island, instead of truly random directions.
 
-- Generate new tiles with weighted chance based on 
+- Generate new land tiles with weighted chance based on adjastent tiles (excluding deep_water tiles since they will always be there)
+
+Ex. If there is grass adjascent, chance for generated tile to be grass increases so its not totally random and there are biomes.
+
+- Initial island size is 2x2 tiles.
+
+- Generate/remove a tile for every 400 increase/decrease in "mc" state variable

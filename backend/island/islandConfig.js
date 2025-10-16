@@ -52,12 +52,12 @@ export const DEEP_WATER_VARIANTS = {
 };
 
 export const OCEAN_ROCK_VARIANTS = {
-    'water_rock_1': 0.20,
-    'water_rock_2': 0.20,
-    'water_rock_3': 0.20,
-    'water_rock_4': 0.20,
-    'water_rock_5': 0.10,
-    'water_rock_7': 0.10
+    'water_rock_1': 0.01,
+    'water_rock_2': 0.01,
+    'water_rock_3': 0.01,
+    'water_rock_4': 0.01,
+    'water_rock_5': 0.01,
+    'water_rock_7': 0.01
 };
 
 // Shallow water transition tiles (based on direction)
@@ -107,11 +107,13 @@ export const DECORATION_TYPES = {
 export const WALK_CONFIG = {
     CARDINAL_WEIGHT: 0.70,  // 70% chance to move N/S/E/W
     DIAGONAL_WEIGHT: 0.30,  // 30% chance to move diagonally
-    OCEAN_ROCK_CHANCE: 0.10 // 10% chance for deep water to become ocean rock
+    OCEAN_ROCK_CHANCE: 0.02 // 2% chance for deep water to become ocean rock (reduced by 80%)
 };
 
-// Isometric tile dimensions (in pixels) - adjust based on actual tile size
+// Isometric tile dimensions (in pixels) - MUST match frontend IslandRenderer TILE_CONFIG
+// Frontend uses TILE_WIDTH: 64, TILE_HEIGHT: 32 for isometric spacing
+// Tiles are rendered with scale=2, but these values are the PRE-SCALE isometric dimensions
 export const TILE_DIMENSIONS = {
-    WIDTH: 64,   // Full tile width
-    HEIGHT: 32   // Full tile height (half width for isometric)
+    WIDTH: 64,    // Isometric tile width (used in projection formula)
+    HEIGHT: 32    // Isometric tile height (used in projection formula)
 };

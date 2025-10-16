@@ -2,7 +2,7 @@ import {
     useEffect,
     useRef,
     useState,
-    useCallback
+    memo
 } from 'react';
 import { extend } from '@pixi/react';
 import {
@@ -23,7 +23,7 @@ const DIRECTION_MAP = {
     'SW': 3
 };
 
-export function Npc({
+export const Npc = memo(function Npc({
     frames,
     npcType = 'stag',
     x,
@@ -34,17 +34,18 @@ export function Npc({
     const spriteRef = useRef(null);
     const [currentFrames, setCurrentFrames] = useState([]);
 
-    // Get the correct animation frames based on current direction and state
-    const getFramesForDirection = useCallback(() => {
+    // Update frames when state or direction changes
+    // NOTE: frames is NOT in dependency array because it's loaded once and never changes
+    useEffect(() => {
         if (!frames || !frames[npcType] || !frames[npcType][state]) {
-            return [];
+            return;
         }
 
         const stateData = frames[npcType][state];
         const spriteConfig = SPRITE_SHEETS[npcType]?.[state];
 
         if (!spriteConfig) {
-            return [];
+            return;
         }
 
         const cols = spriteConfig.cols;
@@ -64,15 +65,9 @@ export function Npc({
         const endFrame = startFrame + cols;
 
         const selectedFrames = stateData.frames.slice(startFrame, endFrame);
-
-        return selectedFrames;
-    }, [frames, npcType, state, direction]);
-
-    // Update frames when state or direction changes
-    useEffect(() => {
-        const newFrames = getFramesForDirection();
-        setCurrentFrames(newFrames);
-    }, [getFramesForDirection]);
+        setCurrentFrames(selectedFrames);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [npcType, state, direction]); // frames intentionally excluded - it never changes
 
     // Play animation when sprite ref and frames are ready
     useEffect(() => {
@@ -98,6 +93,17 @@ export function Npc({
             y={y}
             anchor={0.5}
             scale={2}
+            zIndex={10000}
         />
     );
-}
+}, (prevProps, nextProps) => {
+    // Custom comparison: only re-render if these props actually changed
+    return (
+        prevProps.npcType === nextProps.npcType &&
+        prevProps.state === nextProps.state &&
+        prevProps.direction === nextProps.direction &&
+        Math.round(prevProps.x) === Math.round(nextProps.x) &&
+        Math.round(prevProps.y) === Math.round(nextProps.y)
+        // frames excluded - it never changes
+    );
+});

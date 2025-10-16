@@ -10,6 +10,7 @@ import {
 } from 'pixi.js'
 import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
+import { OceanBackground } from "./OceanBackground";
 import { tileLoader } from '../helpers/TileLoader';
 import { useEffect, useState } from 'react';
 
@@ -22,8 +23,6 @@ extend({
 })
 
 export const GameCanvas = ({ frames, gameState, socket }) => {
-  console.log("GameCanvas rendering with frames:", frames);
-  console.log("GameCanvas gameState:", gameState);
 
   // Track tile loading state
   const [tilesLoaded, setTilesLoaded] = useState(false);
@@ -71,6 +70,23 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Extract NPCs array from gameState, or use empty array as fallback
   const npcs = gameState?.npcs ? Object.entries(gameState.npcs) : [];
+
+  // Calculate offset to center everything on screen
+  // The island's center tile should be at the screen center
+  const gridSize = islandData?.gridSize || 5;
+  const centerTile = Math.floor(gridSize / 2);
+
+  // Calculate where the center tile is in world coordinates (backend coordinate system)
+  const TILE_WIDTH = 64;
+  const TILE_HEIGHT = 32;
+  const backendOriginX = 400;
+  const backendOriginY = 200;
+  const islandCenterX = ((centerTile - centerTile) * (TILE_WIDTH / 2)) + backendOriginX;
+  const islandCenterY = ((centerTile + centerTile) * (TILE_HEIGHT / 2)) + backendOriginY;
+
+  // Calculate offset to center the island's center tile on screen
+  const centerOffsetX = (window.innerWidth / 2) - islandCenterX;
+  const centerOffsetY = (window.innerHeight / 2) - islandCenterY;
 
   return (
     <>
@@ -150,6 +166,9 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
       {/* Game Canvas */}
       <Application resizeTo={window}>
         <container sortableChildren>
+          {/* Render Ocean Background (simple colored rectangle) */}
+          <OceanBackground />
+
           {/* Render Island (if tiles are loaded) */}
           {tilesLoaded && islandData && (
             <IslandRenderer
@@ -160,17 +179,22 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
           )}
 
           {/* Render NPCs on top of island */}
-          {npcs.map(([npcId, npcData]) => (
-            <Npc
-              key={npcId}
-              frames={frames}
-              npcType={npcData.npcType || 'stag'}
-              x={npcData.x}
-              y={npcData.y}
-              state={npcData.state || 'idle'}
-              direction={npcData.direction || 'NE'}
-            />
-          ))}
+          {npcs.map(([npcId, npcData]) => {
+            // Adjust NPC position by half tile north to align with visual tile center
+            // In isometric view, half tile = 16px up
+            const npcYAdjustment = 0;
+            return (
+              <Npc
+                key={npcId}
+                frames={frames}
+                npcType={npcData.npcType || 'stag'}
+                x={npcData.x + centerOffsetX}
+                y={npcData.y + centerOffsetY + npcYAdjustment}
+                state={npcData.state || 'idle'}
+                direction={npcData.direction || 'NE'}
+              />
+            );
+          })}
         </container>
       </Application>
     </>

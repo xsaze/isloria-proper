@@ -4,12 +4,12 @@
 
 export const gameConfig = {
     // Game loop settings
-    TARGET_FPS: 60,
-    FRAME_TIME: 1000 / 60,  // ~16.67ms per frame
+    TARGET_FPS: 20,
+    FRAME_TIME: 1000 / 20,  // ~16.67ms per frame
 
     // Network settings
-    BROADCAST_FPS: 30,  // Send updates to clients 30 times per second
-    BROADCAST_INTERVAL: 1000 / 30,  // ~33ms per broadcast
+    BROADCAST_FPS: 20,  // Send updates to clients 20 times per second
+    BROADCAST_INTERVAL: 1000 / 20,  // 50ms per broadcast
 
     // World boundaries
     boundaries: {
@@ -33,5 +33,27 @@ export const gameConfig = {
     physics: {
         SEPARATION_BUFFER: 2,  // Extra buffer for separation force
         COLLISION_RESET_TIME: 500  // Reset stuck counter after 500ms no collision
+    },
+
+    // NPC Spawning settings - spawn NPCs at certain MC thresholds
+    npcSpawning: {
+        // Each threshold spawns NPCs of the specified type near center
+        thresholds: [
+            { mc: 0, npcType: 'stag', count: 1 },
+            { mc: 5000, npcType: 'wolf', count: 1 },
+            { mc: 10000, npcType: 'player', count: 1 },
+            { mc: 20000, npcType: 'boar', count: 1 },
+            { mc: 30000, npcType: 'wolf', count: 1 },
+            { mc: 50000, npcType: 'player', count: 1 },
+            { mc: 75000, npcType: 'boar', count: 1 },
+            { mc: 100000, npcType: 'stag', count: 2 }
+        ],
+        spawnRadius: 5,  // Spawn NPCs within 5 tiles of center
+        defaultSpeed: {
+            stag: 1.5,
+            player: 1.3,
+            boar: 1.8,
+            wolf: 1.5
+        }
     }
 };

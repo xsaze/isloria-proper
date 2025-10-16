@@ -1,5 +1,6 @@
 /**
  * Island Generator - Procedural island generation based on MC value
+ * FIXED 80x80 GRID - Island grows from center outward
  */
 
 import {
@@ -16,39 +17,36 @@ import {
 
 export class IslandGenerator {
     /**
-     * Generate island based on MC value
+     * Generate island based on MC value - FIXED 80x80 GRID
+     * OPTIMIZED: Only generates land and shallow water tiles (no ocean/deep water)
      */
     static generate(mc) {
-        // Determine grid size based on MC
-        const gridSize = this.getGridSizeFromMC(mc);
-        console.log(`🏝️ Generating island: ${gridSize}x${gridSize} (MC: ${mc})`);
+        const gridSize = 80;  // Always use 80x80 grid
+        const targetLandTiles = this.calculateTargetLandTiles(mc);
+        // Reduced logging - only log on significant generation
+        // console.log(`🏝️ Generating island: ${gridSize}x${gridSize} (MC: ${mc}, Target tiles: ${targetLandTiles})`);
 
-        // Initialize grid with deep water
-        const tiles = this.initializeGrid(gridSize);
+        // OPTIMIZATION: Only store land tiles, not entire grid
+        const landTiles = [];
+        const landTileSet = new Set();
 
-        // Calculate target land tiles (roughly 50-70% of grid)
-        const targetLandTiles = Math.floor(gridSize * gridSize * 0.6);
+        // Create initial center island (2x2 or 3x3)
+        this.createCenterIslandOptimized(landTiles, landTileSet, gridSize, targetLandTiles);
 
-        // Generate land using random walk
-        const landTiles = this.generateLandTiles(gridSize, targetLandTiles);
+        // Grow island tile-by-tile until reaching target
+        this.growIslandToTargetOptimized(landTiles, landTileSet, targetLandTiles, gridSize);
 
-        // Assign tile types to land tiles
+        // Assign tile types to land tiles (grass vs dirt)
         this.assignLandTileTypes(landTiles, gridSize);
 
-        // Update tiles array with land tiles
-        for (const landTile of landTiles) {
-            const index = landTile.y * gridSize + landTile.x;
-            tiles[index] = landTile;
-        }
-
         // Generate shallow water transitions
-        this.generateShallowWaterTransitions(tiles, landTiles, gridSize);
+        const shallowWaterTiles = this.generateShallowWaterTransitions(landTileSet, gridSize);
 
-        // Add ocean rocks to deep water
-        this.addOceanRocks(tiles, gridSize);
+        // Combine land and shallow water tiles
+        const tiles = [...landTiles, ...shallowWaterTiles];
 
         // Generate decorations
-        const decorations = this.generateDecorations(landTiles);
+        const decorations = this.generateDecorationsFromSet(landTiles, landTileSet);
 
         return {
             gridSize,
@@ -58,7 +56,7 @@ export class IslandGenerator {
     }
 
     /**
-     * Get grid size from MC value
+     * Get grid size from MC value (kept for compatibility)
      */
     static getGridSizeFromMC(mc) {
         for (const threshold of MC_SIZE_THRESHOLDS) {
@@ -70,107 +68,230 @@ export class IslandGenerator {
     }
 
     /**
-     * Initialize grid with deep water tiles
+     * Create initial center island - OPTIMIZED VERSION
+     * Only creates land tiles, no grid initialization
      */
-    static initializeGrid(gridSize) {
-        const tiles = [];
-        for (let y = 0; y < gridSize; y++) {
-            for (let x = 0; x < gridSize; x++) {
-                tiles.push({
-                    x,
-                    y,
-                    type: 'deep_water',
-                    variant: this.weightedRandom(DEEP_WATER_VARIANTS),
-                    walkable: false
-                });
-            }
-        }
-        return tiles;
-    }
-
-    /**
-     * Generate land tiles using random walk algorithm
-     */
-    static generateLandTiles(gridSize, targetCount) {
-        const landTiles = new Set();
+    static createCenterIslandOptimized(landTiles, landTileSet, gridSize, targetLandTiles) {
         const center = Math.floor(gridSize / 2);
 
-        // Start from center
-        const startTile = { x: center, y: center };
-        landTiles.add(`${startTile.x},${startTile.y}`);
+        // Use 3x3 center for large islands, 2x2 for smaller
+        const startPositions = targetLandTiles > 50 ? [
+            // 3x3 center
+            { x: center - 1, y: center - 1 },
+            { x: center, y: center - 1 },
+            { x: center + 1, y: center - 1 },
+            { x: center - 1, y: center },
+            { x: center, y: center },
+            { x: center + 1, y: center },
+            { x: center - 1, y: center + 1 },
+            { x: center, y: center + 1 },
+            { x: center + 1, y: center + 1 }
+        ] : [
+            // 2x2 center
+            { x: center, y: center },
+            { x: center + 1, y: center },
+            { x: center, y: center + 1 },
+            { x: center + 1, y: center + 1 }
+        ];
 
-        // Current positions for multiple walkers
-        const walkers = [{ ...startTile }];
+        for (const pos of startPositions) {
+            landTiles.push({
+                x: pos.x,
+                y: pos.y,
+                type: 'grass',
+                variant: 'grass_full_mid',
+                walkable: true
+            });
+            landTileSet.add(`${pos.x},${pos.y}`);
+        }
+    }
 
-        // Random walk until target reached
-        while (landTiles.size < targetCount && walkers.length > 0) {
-            const walker = walkers[Math.floor(Math.random() * walkers.length)];
+    /**
+     * Grow island to target - OPTIMIZED VERSION
+     * Only creates land tiles, no grid manipulation
+     */
+    static growIslandToTargetOptimized(landTiles, landTileSet, targetCount, gridSize) {
+        let iterations = 0;
+        const maxIterations = targetCount * 2;
 
-            // Pick random direction (weighted toward cardinal)
-            const direction = this.getRandomDirection();
-            const newX = walker.x + direction.dx;
-            const newY = walker.y + direction.dy;
+        while (landTileSet.size < targetCount && iterations < maxIterations) {
+            iterations++;
 
-            // Check bounds
-            if (newX >= 0 && newX < gridSize && newY >= 0 && newY < gridSize) {
-                const key = `${newX},${newY}`;
-                if (!landTiles.has(key)) {
-                    landTiles.add(key);
-                    walkers.push({ x: newX, y: newY });
+            // Find all water tiles adjacent to land
+            const candidates = this.findGrowthCandidates(landTileSet, gridSize);
 
-                    // Occasionally remove walkers to keep island compact
-                    if (Math.random() < 0.1 && walkers.length > 2) {
-                        walkers.splice(Math.floor(Math.random() * walkers.length), 1);
-                    }
-                }
-                // Move walker
-                walker.x = newX;
-                walker.y = newY;
+            if (candidates.length === 0) {
+                // console.warn(`⚠️ No more growth candidates. Reached ${landTileSet.size}/${targetCount} tiles`);
+                break;
+            }
+
+            // Randomly select one candidate
+            const randomIndex = Math.floor(Math.random() * candidates.length);
+            const selectedTile = candidates[randomIndex];
+
+            // Create new land tile
+            landTiles.push({
+                x: selectedTile.x,
+                y: selectedTile.y,
+                type: 'grass',
+                variant: 'grass_full_mid',
+                walkable: true
+            });
+
+            // Add to land set
+            landTileSet.add(`${selectedTile.x},${selectedTile.y}`);
+        }
+
+        // console.log(`🌱 Island grown to ${landTileSet.size} land tiles`);
+    }
+
+    /**
+     * Calculate target number of land tiles based on MC
+     * 1 tile per 400 MC, capped at maximum tiles that fit in 80x80 grid
+     */
+    static calculateTargetLandTiles(mc) {
+        const tilesPerMC = 1 / 400;  // 1 tile per 400 MC
+        const targetTiles = Math.floor(mc * tilesPerMC);
+
+        // Cap at reasonable maximum (80% of 80x80 grid = 5120 tiles)
+        const maxTiles = Math.floor(80 * 80 * 0.8);
+
+        // Minimum 4 tiles (2x2 starting island)
+        return Math.max(4, Math.min(targetTiles, maxTiles));
+    }
+
+    /**
+     * Calculate required grid size based on target land tiles
+     * Grid expands to accommodate the island with water border
+     */
+    static calculateGridSize(targetLandTiles) {
+        // Estimate island diameter (assuming roughly circular shape at 80% density)
+        const estimatedDiameter = Math.ceil(Math.sqrt(targetLandTiles / 0.8)) * 2;
+
+        // Add padding for water border (at least 5 tiles on each side)
+        const gridSize = estimatedDiameter + 10;
+
+        // Clamp between minimum 13 and maximum 100
+        return Math.max(13, Math.min(gridSize, 100));
+    }
+
+    /**
+     * Create initial center island (2x2 or 3x3)
+     */
+    static createCenterIsland(tiles, gridSize, targetLandTiles) {
+        const center = Math.floor(gridSize / 2);
+        const landTileSet = new Set();
+
+        // Use 3x3 center for large islands, 2x2 for smaller
+        const startPositions = targetLandTiles > 50 ? [
+            // 3x3 center
+            { x: center - 1, y: center - 1 },
+            { x: center, y: center - 1 },
+            { x: center + 1, y: center - 1 },
+            { x: center - 1, y: center },
+            { x: center, y: center },
+            { x: center + 1, y: center },
+            { x: center - 1, y: center + 1 },
+            { x: center, y: center + 1 },
+            { x: center + 1, y: center + 1 }
+        ] : [
+            // 2x2 center
+            { x: center, y: center },
+            { x: center + 1, y: center },
+            { x: center, y: center + 1 },
+            { x: center + 1, y: center + 1 }
+        ];
+
+        for (const pos of startPositions) {
+            const index = pos.y * gridSize + pos.x;
+            tiles[index].type = 'grass';
+            tiles[index].variant = 'grass_full_mid';
+            tiles[index].walkable = true;
+            landTileSet.add(`${pos.x},${pos.y}`);
+        }
+
+        return landTileSet;
+    }
+
+    /**
+     * Find all water tiles adjacent (orthogonally) to land
+     */
+    static findGrowthCandidates(landTileSet, gridSize) {
+        const candidates = [];
+        const cardinalDirections = [
+            { dx: 0, dy: -1 },  // North
+            { dx: 1, dy: 0 },   // East
+            { dx: 0, dy: 1 },   // South
+            { dx: -1, dy: 0 }   // West
+        ];
+
+        const checkedWaterTiles = new Set();
+
+        for (const landKey of landTileSet) {
+            const [x, y] = landKey.split(',').map(Number);
+
+            for (const dir of cardinalDirections) {
+                const nx = x + dir.dx;
+                const ny = y + dir.dy;
+
+                // Bounds check
+                if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) continue;
+
+                const neighborKey = `${nx},${ny}`;
+
+                // Skip if already land or already checked
+                if (landTileSet.has(neighborKey) || checkedWaterTiles.has(neighborKey)) continue;
+
+                checkedWaterTiles.add(neighborKey);
+                candidates.push({ x: nx, y: ny });
             }
         }
 
-        // Convert Set to array of tile objects
-        const result = [];
-        for (const key of landTiles) {
-            const [x, y] = key.split(',').map(Number);
-            result.push({ x, y, type: 'grass', variant: 'grass_full_mid', walkable: true });
-        }
-
-        return result;
+        return candidates;
     }
 
     /**
-     * Get random direction with weighted preference for cardinal directions
+     * Grow island tile-by-tile until reaching target
      */
-    static getRandomDirection() {
-        const rand = Math.random();
-        const directions = {
-            cardinal: [
-                { dx: 0, dy: -1 },  // North
-                { dx: 1, dy: 0 },   // East
-                { dx: 0, dy: 1 },   // South
-                { dx: -1, dy: 0 }   // West
-            ],
-            diagonal: [
-                { dx: 1, dy: -1 },  // NE
-                { dx: 1, dy: 1 },   // SE
-                { dx: -1, dy: 1 },  // SW
-                { dx: -1, dy: -1 }  // NW
-            ]
-        };
+    static growIslandToTarget(tiles, landTileSet, targetCount, gridSize) {
+        let iterations = 0;
+        const maxIterations = targetCount * 2;
 
-        if (rand < WALK_CONFIG.CARDINAL_WEIGHT) {
-            return directions.cardinal[Math.floor(Math.random() * directions.cardinal.length)];
-        } else {
-            return directions.diagonal[Math.floor(Math.random() * directions.diagonal.length)];
+        while (landTileSet.size < targetCount && iterations < maxIterations) {
+            iterations++;
+
+            // Find all water tiles adjacent to land
+            const candidates = this.findGrowthCandidates(landTileSet, gridSize);
+
+            if (candidates.length === 0) {
+                console.warn(`⚠️ No more growth candidates. Reached ${landTileSet.size}/${targetCount} tiles`);
+                break;
+            }
+
+            // Randomly select one candidate
+            const randomIndex = Math.floor(Math.random() * candidates.length);
+            const selectedTile = candidates[randomIndex];
+
+            // Convert to land
+            const tileIndex = selectedTile.y * gridSize + selectedTile.x;
+            tiles[tileIndex].type = 'grass';
+            tiles[tileIndex].variant = 'grass_full_mid';
+            tiles[tileIndex].walkable = true;
+
+            // Add to land set
+            landTileSet.add(`${selectedTile.x},${selectedTile.y}`);
         }
+
+        console.log(`🌱 Island grown to ${landTileSet.size} land tiles`);
     }
 
     /**
-     * Assign tile types to land tiles (grass vs dirt based on position)
+     * Assign tile types to land tiles - OPTIMIZED VERSION
+     * Works directly on landTiles array instead of using grid indices
      */
     static assignLandTileTypes(landTiles, gridSize) {
         const center = gridSize / 2;
+        const variantCounts = {};
 
         for (const tile of landTiles) {
             // Calculate distance from center
@@ -185,102 +306,100 @@ export class IslandGenerator {
                 tile.type = 'grass';
                 tile.variant = this.weightedRandom(GRASS_VARIANTS);
             } else if (normalizedDist < 0.7) {
-                // Mix of grass and dirt
                 tile.type = Math.random() < 0.5 ? 'grass' : 'dirt';
                 tile.variant = tile.type === 'grass'
                     ? this.weightedRandom(GRASS_VARIANTS)
                     : this.weightedRandom(DIRT_VARIANTS);
             } else {
-                // Outer ring = mostly dirt
                 tile.type = 'dirt';
                 tile.variant = this.weightedRandom(DIRT_VARIANTS);
             }
 
             tile.walkable = true;
+
+            // Track variants for debugging
+            const key = `${tile.type}:${tile.variant}`;
+            variantCounts[key] = (variantCounts[key] || 0) + 1;
         }
+
+        // console.log('🎨 Tile variant distribution:', variantCounts);
     }
 
     /**
-     * Generate shallow water transitions at land edges
+     * Generate shallow water transitions - OPTIMIZED VERSION
+     * Creates new shallow water tiles only where needed
      */
-    static generateShallowWaterTransitions(tiles, landTiles, gridSize) {
-        const landSet = new Set(landTiles.map(t => `${t.x},${t.y}`));
+    static generateShallowWaterTransitions(landTileSet, gridSize) {
+        const allDirections = [
+            { dx: 0, dy: -1, dir: 'N' },
+            { dx: 1, dy: 0, dir: 'E' },
+            { dx: 0, dy: 1, dir: 'S' },
+            { dx: -1, dy: 0, dir: 'W' },
+            { dx: 1, dy: -1, dir: 'NE' },
+            { dx: 1, dy: 1, dir: 'SE' },
+            { dx: -1, dy: 1, dir: 'SW' },
+            { dx: -1, dy: -1, dir: 'NW' }
+        ];
 
-        for (const landTile of landTiles) {
-            const { x, y } = landTile;
+        const shallowWaterTiles = [];
+        const shallowWaterSet = new Set();
 
-            // Check 8 neighbors for water
-            const neighbors = [
-                { dx: 0, dy: -1, dir: 'N' },
-                { dx: 1, dy: 0, dir: 'E' },
-                { dx: 0, dy: 1, dir: 'S' },
-                { dx: -1, dy: 0, dir: 'W' },
-                { dx: 1, dy: -1, dir: 'NE' },
-                { dx: 1, dy: 1, dir: 'SE' },
-                { dx: -1, dy: 1, dir: 'SW' },
-                { dx: -1, dy: -1, dir: 'NW' }
-            ];
+        for (const landKey of landTileSet) {
+            const [x, y] = landKey.split(',').map(Number);
 
-            for (const neighbor of neighbors) {
+            for (const neighbor of allDirections) {
                 const nx = x + neighbor.dx;
                 const ny = y + neighbor.dy;
 
-                // Check bounds
+                // Bounds check
                 if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) continue;
 
                 const neighborKey = `${nx},${ny}`;
-                if (!landSet.has(neighborKey)) {
-                    // This is a water tile adjacent to land
-                    const tileIndex = ny * gridSize + nx;
-                    const waterTile = tiles[tileIndex];
 
-                    // Only update if still deep water
-                    if (waterTile.type === 'deep_water') {
-                        waterTile.type = 'shallow_water';
-
-                        // Assign transition variant based on direction
-                        if (SHALLOW_WATER_EDGES[neighbor.dir]) {
-                            waterTile.variant = SHALLOW_WATER_EDGES[neighbor.dir];
-                        } else if (SHALLOW_WATER_CORNERS[neighbor.dir]) {
-                            waterTile.variant = SHALLOW_WATER_CORNERS[neighbor.dir];
-                        } else {
-                            waterTile.variant = 'shallow_water_full';
-                        }
-
-                        waterTile.walkable = false;  // Shallow water = shore boundary
+                // If not land and not already shallow water
+                if (!landTileSet.has(neighborKey) && !shallowWaterSet.has(neighborKey)) {
+                    // Assign transition variant based on direction
+                    let variant;
+                    if (SHALLOW_WATER_EDGES[neighbor.dir]) {
+                        variant = SHALLOW_WATER_EDGES[neighbor.dir];
+                    } else if (SHALLOW_WATER_CORNERS[neighbor.dir]) {
+                        variant = SHALLOW_WATER_CORNERS[neighbor.dir];
+                    } else {
+                        variant = 'shallow_water_full';
                     }
+
+                    shallowWaterTiles.push({
+                        x: nx,
+                        y: ny,
+                        type: 'shallow_water',
+                        variant: variant,
+                        walkable: false
+                    });
+
+                    shallowWaterSet.add(neighborKey);
                 }
             }
         }
-    }
 
-    /**
-     * Add ocean rocks to deep water tiles
-     */
-    static addOceanRocks(tiles, gridSize) {
-        for (const tile of tiles) {
-            if (tile.type === 'deep_water' && Math.random() < WALK_CONFIG.OCEAN_ROCK_CHANCE) {
-                tile.type = 'ocean_rocks';
-                tile.variant = this.weightedRandom(OCEAN_ROCK_VARIANTS);
-                tile.walkable = false;
-            }
-        }
+        return shallowWaterTiles;
     }
 
     /**
      * Generate decorations on land tiles
      */
-    static generateDecorations(landTiles) {
+    static generateDecorationsFromSet(tiles, landTileSet) {
         const decorations = [];
 
-        for (const tile of landTiles) {
+        for (const landKey of landTileSet) {
+            const [x, y] = landKey.split(',').map(Number);
+
             // Try each decoration type
             for (const [typeName, typeData] of Object.entries(DECORATION_TYPES)) {
                 if (Math.random() < typeData.weight) {
                     const variant = typeData.variants[Math.floor(Math.random() * typeData.variants.length)];
                     decorations.push({
-                        x: tile.x,
-                        y: tile.y,
+                        x,
+                        y,
                         variant,
                         collision: typeData.collision
                     });
@@ -289,7 +408,7 @@ export class IslandGenerator {
             }
         }
 
-        console.log(`🌸 Generated ${decorations.length} decorations`);
+        // console.log(`🌸 Generated ${decorations.length} decorations`);
         return decorations;
     }
 

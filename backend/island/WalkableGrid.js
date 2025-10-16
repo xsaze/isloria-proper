@@ -11,9 +11,9 @@ export class WalkableGrid {
         this.tileWidth = TILE_DIMENSIONS.WIDTH;
         this.tileHeight = TILE_DIMENSIONS.HEIGHT;
 
-        // World space origin (center of screen)
-        this.originX = 0;
-        this.originY = 0;
+        // World space origin (matches IslandRenderer frontend offset)
+        this.originX = 400;
+        this.originY = 200;
 
         // Initialize empty grid
         this.initializeGrid();
@@ -90,15 +90,24 @@ export class WalkableGrid {
 
     /**
      * Update entire grid from island data
+     * OPTIMIZED: Works with sparse tile arrays (only land/shallow water tiles)
      */
     updateFromIsland(islandData) {
-        // Reset grid
+        // Reset grid (all non-walkable)
         this.initializeGrid();
 
-        // Mark land tiles as walkable
+        // Mark land tiles as walkable, but exclude outermost tiles as safety margin
+        // Note: Island tiles array now only contains land and shallow water, no deep water
         for (const tile of islandData.tiles) {
             if (tile.walkable) {
-                this.setWalkable(tile.x, tile.y, true);
+                // Skip tiles on the outer edge (1 tile margin)
+                const isOuterEdge = tile.x === 0 || tile.y === 0 ||
+                                   tile.x === this.gridSize - 1 ||
+                                   tile.y === this.gridSize - 1;
+
+                if (!isOuterEdge) {
+                    this.setWalkable(tile.x, tile.y, true);
+                }
             }
         }
 
@@ -109,7 +118,7 @@ export class WalkableGrid {
             }
         }
 
-        console.log(`🗺️ Walkable grid updated: ${this.gridSize}x${this.gridSize}`);
+        console.log(`🗺️ Walkable grid updated: ${this.gridSize}x${this.gridSize} (with 1-tile safety margin)`);
     }
 
     /**
@@ -163,6 +172,39 @@ export class WalkableGrid {
         }
 
         const randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+        return this.gridToWorld(randomTile.x, randomTile.y);
+    }
+
+    /**
+     * Get random walkable position near center (for spawning NPCs)
+     * @param {number} maxRadius - Maximum distance from center in grid tiles (default: 5)
+     */
+    getRandomWalkablePositionNearCenter(maxRadius = 5) {
+        const centerX = Math.floor(this.gridSize / 2);
+        const centerY = Math.floor(this.gridSize / 2);
+        const nearCenterTiles = [];
+
+        // Find walkable tiles within radius of center
+        for (let y = 0; y < this.gridSize; y++) {
+            for (let x = 0; x < this.gridSize; x++) {
+                if (this.grid[y][x] === 1) {
+                    const distFromCenter = Math.sqrt(
+                        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+                    );
+                    if (distFromCenter <= maxRadius) {
+                        nearCenterTiles.push({ x, y });
+                    }
+                }
+            }
+        }
+
+        // If no tiles near center, fall back to any walkable tile
+        if (nearCenterTiles.length === 0) {
+            console.warn('⚠️ No walkable tiles near center, using any walkable tile');
+            return this.getRandomWalkablePosition();
+        }
+
+        const randomTile = nearCenterTiles[Math.floor(Math.random() * nearCenterTiles.length)];
         return this.gridToWorld(randomTile.x, randomTile.y);
     }
 

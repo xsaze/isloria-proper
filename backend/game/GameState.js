@@ -1,4 +1,5 @@
 import { IslandManager } from '../island/IslandManager.js';
+import { gameConfig } from '../config/gameConfig.js';
 
 /**
  * Manages the global game state
@@ -12,6 +13,16 @@ export class GameState {
         this.mc = 0;  // MC (money/currency) state
         this.islandManager = new IslandManager();
         this.islandManager.initialize(this.mc);  // Generate initial island
+
+        // Track which spawn thresholds have been triggered
+        this.spawnedThresholds = new Set();
+        this.nextNpcId = 1;  // Counter for generating unique NPC IDs
+
+        // Map threshold MC values to spawned NPC IDs for despawning
+        this.thresholdToNpcs = new Map();
+
+        // Spawn initial NPCs based on starting MC
+        this.checkAndSpawnNPCs();
     }
 
     /**
@@ -49,14 +60,84 @@ export class GameState {
     }
 
     /**
+     * Check and spawn NPCs based on MC thresholds
+     */
+    checkAndSpawnNPCs() {
+        const { thresholds, spawnRadius, defaultSpeed } = gameConfig.npcSpawning;
+
+        for (const threshold of thresholds) {
+            // Check if this threshold should trigger and hasn't been triggered yet
+            if (this.mc >= threshold.mc && !this.spawnedThresholds.has(threshold.mc)) {
+                // Mark threshold as triggered
+                this.spawnedThresholds.add(threshold.mc);
+
+                // Track NPCs spawned for this threshold
+                const spawnedNpcIds = [];
+
+                // Spawn the specified number of NPCs
+                for (let i = 0; i < threshold.count; i++) {
+                    const npcId = `npc_${threshold.npcType}_${this.nextNpcId++}`;
+                    const position = this.islandManager.getRandomWalkablePositionNearCenter(spawnRadius);
+
+                    const npcData = {
+                        x: position.worldX,
+                        y: position.worldY,
+                        vx: 0,
+                        vy: 0,
+                        state: Math.random() < 0.5 ? 'walk' : 'run',
+                        direction: ['NE', 'NW', 'SE', 'SW'][Math.floor(Math.random() * 4)],
+                        npcType: threshold.npcType,
+                        speed: defaultSpeed[threshold.npcType] || 1.5
+                    };
+
+                    this.npcManager.addNpc(npcId, npcData);
+                    spawnedNpcIds.push(npcId);
+                    console.log(`🦌 Spawned ${threshold.npcType} (${npcId}) at MC threshold ${threshold.mc}`);
+                }
+
+                // Store the mapping of threshold to spawned NPCs
+                this.thresholdToNpcs.set(threshold.mc, spawnedNpcIds);
+            }
+        }
+    }
+
+    /**
+     * Remove NPCs that shouldn't exist at current MC level
+     * (when MC decreases below threshold)
+     */
+    removeNPCsBelowThreshold() {
+        const { thresholds } = gameConfig.npcSpawning;
+
+        // Find thresholds that are now above current MC and remove their NPCs
+        for (const threshold of thresholds) {
+            if (this.mc < threshold.mc && this.spawnedThresholds.has(threshold.mc)) {
+                // Remove this threshold from spawned set
+                this.spawnedThresholds.delete(threshold.mc);
+
+                // Remove all NPCs that were spawned for this threshold
+                const npcIds = this.thresholdToNpcs.get(threshold.mc);
+                if (npcIds) {
+                    for (const npcId of npcIds) {
+                        this.npcManager.removeNpc(npcId);
+                        console.log(`💀 Despawned ${npcId} - MC dropped below threshold ${threshold.mc}`);
+                    }
+                    // Remove the mapping
+                    this.thresholdToNpcs.delete(threshold.mc);
+                }
+            }
+        }
+    }
+
+    /**
      * Increase MC by specified amount
      */
     increaseMc(amount = 10000) {
         this.mc += amount;
-        if (this.islandManager.shouldRegenerate(this.mc)) {
-            this.islandManager.regenerateIsland(this.mc);
-            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        const islandChanged = this.islandManager.updateForMC(this.mc);
+        if (islandChanged) {
+            console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
+        this.checkAndSpawnNPCs();  // Check for new spawns
         console.log(`💰 MC increased by ${amount}. New MC: ${this.mc}`);
     }
 
@@ -65,10 +146,11 @@ export class GameState {
      */
     decreaseMc(amount = 10000) {
         this.mc -= amount;
-        if (this.islandManager.shouldRegenerate(this.mc)) {
-            this.islandManager.regenerateIsland(this.mc);
-            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        const islandChanged = this.islandManager.updateForMC(this.mc);
+        if (islandChanged) {
+            console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
+        this.removeNPCsBelowThreshold();  // Optional: remove NPCs below threshold
         console.log(`💸 MC decreased by ${amount}. New MC: ${this.mc}`);
     }
 
@@ -77,10 +159,20 @@ export class GameState {
      */
     resetMc() {
         this.mc = 0;
-        if (this.islandManager.shouldRegenerate(this.mc)) {
-            this.islandManager.regenerateIsland(this.mc);
-            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        const islandChanged = this.islandManager.updateForMC(this.mc);
+        if (islandChanged) {
+            console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
+
+        // Remove all NPCs by clearing thresholds
+        this.removeNPCsBelowThreshold();
+
+        // Reset spawned thresholds and NPC mappings
+        this.spawnedThresholds.clear();
+        this.thresholdToNpcs.clear();
+
+        // Respawn NPCs for MC 0
+        this.checkAndSpawnNPCs();
         console.log(`🔄 MC reset to 0`);
     }
 
@@ -88,11 +180,35 @@ export class GameState {
      * Set MC to specific value
      */
     setMc(value) {
+        const oldMc = this.mc;
         this.mc = value;
-        if (this.islandManager.shouldRegenerate(this.mc)) {
-            this.islandManager.regenerateIsland(this.mc);
-            console.log(`🏝️  Island regenerated for MC: ${this.mc}`);
+        const islandChanged = this.islandManager.updateForMC(this.mc);
+        if (islandChanged) {
+            console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
+
+        // Check if we're going up or down
+        if (value > oldMc) {
+            this.checkAndSpawnNPCs();
+        } else if (value < oldMc) {
+            this.removeNPCsBelowThreshold();
+        }
+
         console.log(`💰 MC set to ${value}`);
+    }
+
+    /**
+     * Respawn all NPCs at random walkable positions on the island
+     */
+    respawnNpcsOnIsland() {
+        const npcs = this.npcManager.getAllNpcs();
+
+        for (const [, npc] of npcs) {
+            const { worldX, worldY } = this.islandManager.getRandomWalkablePosition();
+            npc.x = worldX;
+            npc.y = worldY;
+        }
+
+        console.log(`🎯 Respawned ${npcs.size} NPCs on island`);
     }
 }

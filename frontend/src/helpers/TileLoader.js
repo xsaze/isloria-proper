@@ -176,8 +176,8 @@ export class TileLoader {
             // Build asset manifest for batch loading
             const manifest = this._buildManifest();
 
-            // Load all assets in parallel
-            await Assets.load(manifest.map(item => item.src));
+            // Load all assets in parallel with aliases
+            await Assets.load(manifest.map(item => ({ alias: item.alias, src: item.src })));
 
             // Store textures in organized structure
             for (const item of manifest) {
@@ -253,7 +253,6 @@ export class TileLoader {
      */
     getTexture(tileType, variant) {
         if (!this.loaded) {
-            console.warn('⚠️ Tiles not loaded yet');
             return null;
         }
 

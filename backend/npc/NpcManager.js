@@ -16,21 +16,12 @@ export class NpcManager {
 
     /**
      * Initialize NPCs from initial data
+     * NOTE: NPCs are now spawned dynamically based on MC thresholds
      */
     initialize() {
-        for (const [npcId, npcData] of Object.entries(initialNPCs)) {
-            // Calculate collision radius based on type
-            const baseRadius = COLLISION_RADII[npcData.npcType] || COLLISION_RADII.stag;
-            npcData.radius = baseRadius * DEFAULT_SCALE;
-
-            // Initialize AI (set initial velocity)
-            this.npcAI.initialize(npcData);
-
-            // Add to NPCs map
-            this.npcs.set(npcId, npcData);
-        }
-
-        console.log(`✅ Initialized ${this.npcs.size} NPCs`);
+        // Disabled static NPC spawning - using dynamic spawning via GameState
+        // NPCs will spawn automatically based on MC thresholds in gameConfig.npcSpawning
+        console.log(`✅ NPC Manager initialized (dynamic spawning enabled)`);
     }
 
     /**
@@ -99,5 +90,12 @@ export class NpcManager {
      */
     getNpcCount() {
         return this.npcs.size;
+    }
+
+    /**
+     * Get all NPCs (returns the Map)
+     */
+    getAllNpcs() {
+        return this.npcs;
     }
 }
