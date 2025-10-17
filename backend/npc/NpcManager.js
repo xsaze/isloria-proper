@@ -12,6 +12,7 @@ export class NpcManager {
         this.npcs = new Map();
         this.npcAI = new NpcAI();
         this.npcPhysics = new NpcPhysics(this.npcAI);
+        this.dirtyNpcs = new Set();  // Track which NPCs changed since last broadcast
     }
 
     /**
@@ -34,12 +35,21 @@ export class NpcManager {
 
         // Update AI for all NPCs
         for (const [npcId, npc] of this.npcs.entries()) {
-            this.npcAI.update(npcId, npc, currentTime);
+            const aiChanged = this.npcAI.update(npcId, npc, currentTime);
+            if (aiChanged) {
+                this.dirtyNpcs.add(npcId);
+            }
         }
+
+        // OPTIMIZATION: Rebuild spatial hash grid once per frame before physics
+        this.npcPhysics.rebuildSpatialGrid(this.npcs);
 
         // Update physics for all NPCs (handles collisions and walkability)
         for (const [npcId, npc] of this.npcs.entries()) {
-            this.npcPhysics.update(npcId, npc, this.npcs, deltaTime, islandManager);
+            const physicsChanged = this.npcPhysics.update(npcId, npc, this.npcs, deltaTime, islandManager);
+            if (physicsChanged) {
+                this.dirtyNpcs.add(npcId);
+            }
         }
     }
 
@@ -64,6 +74,40 @@ export class NpcManager {
     }
 
     /**
+     * Get only changed NPCs (delta update for network optimization)
+     */
+    getDirtyNpcsAsObject() {
+        if (this.dirtyNpcs.size === 0) {
+            return null;
+        }
+
+        const npcsObj = {};
+        for (const npcId of this.dirtyNpcs) {
+            const npc = this.npcs.get(npcId);
+            if (npc) {
+                npcsObj[npcId] = {
+                    x: Math.round(npc.x * 10) / 10,
+                    y: Math.round(npc.y * 10) / 10,
+                    vx: Math.round(npc.vx * 10) / 10,
+                    vy: Math.round(npc.vy * 10) / 10,
+                    state: npc.state,
+                    direction: npc.direction,
+                    npcType: npc.npcType,
+                    speed: npc.speed
+                };
+            }
+        }
+        return npcsObj;
+    }
+
+    /**
+     * Clear dirty flags after broadcast
+     */
+    clearDirtyFlags() {
+        this.dirtyNpcs.clear();
+    }
+
+    /**
      * Add a new NPC
      */
     addNpc(npcId, npcData) {
@@ -76,6 +120,9 @@ export class NpcManager {
 
         // Add to map
         this.npcs.set(npcId, npcData);
+
+        // Mark as dirty (new NPC needs to be sent)
+        this.dirtyNpcs.add(npcId);
     }
 
     /**
@@ -83,6 +130,7 @@ export class NpcManager {
      */
     removeNpc(npcId) {
         this.npcs.delete(npcId);
+        this.dirtyNpcs.delete(npcId);
     }
 
     /**

@@ -29,8 +29,51 @@ function App() {
       setIsConnected(false);
     });
 
+    // Full state updates (initial + periodic sync)
     socket.on("gameState", (data) => {
       setGameState(data);
+    });
+
+    // OPTIMIZED: Delta updates (only changes)
+    socket.on("gameStateDelta", (delta) => {
+      setGameState((prevState) => {
+        if (!prevState) return prevState;
+
+        const newState = { ...prevState };
+
+        // Update MC
+        if (delta.mc !== undefined) {
+          newState.mc = delta.mc;
+        }
+
+        // Merge NPC updates
+        if (delta.npcs) {
+          newState.npcs = {
+            ...prevState.npcs,
+            ...delta.npcs
+          };
+        }
+
+        // Remove NPCs
+        if (delta.removedNpcs && delta.removedNpcs.length > 0) {
+          newState.npcs = { ...prevState.npcs };
+          for (const npcId of delta.removedNpcs) {
+            delete newState.npcs[npcId];
+          }
+        }
+
+        // Merge island updates (if any)
+        if (delta.island) {
+          newState.island = {
+            ...prevState.island,
+            ...delta.island
+          };
+        }
+
+        newState.timestamp = delta.timestamp;
+
+        return newState;
+      });
     });
 
     return () => {
@@ -38,6 +81,7 @@ function App() {
       socket.off("disconnect");
       socket.off("connect_error");
       socket.off("gameState");
+      socket.off("gameStateDelta");
     };
   }, []);
 

@@ -21,6 +21,10 @@ export class GameState {
         // Map threshold MC values to spawned NPC IDs for despawning
         this.thresholdToNpcs = new Map();
 
+        // Track island changes for delta updates
+        this.islandChanged = false;
+        this.removedNpcIds = [];  // Track removed NPCs for delta updates
+
         // Spawn initial NPCs based on starting MC
         this.checkAndSpawnNPCs();
     }
@@ -36,6 +40,53 @@ export class GameState {
             frameCount: this.frameCount,
             timestamp: Date.now()
         };
+    }
+
+    /**
+     * Get delta state (only changes since last broadcast) - OPTIMIZED
+     * Returns null if no changes, otherwise returns minimal update payload
+     */
+    getDeltaState() {
+        const dirtyNpcs = this.npcManager.getDirtyNpcsAsObject();
+        const islandDelta = this.islandChanged ? this.islandManager.getDeltaUpdate() : null;
+        const hasRemovedNpcs = this.removedNpcIds.length > 0;
+
+        // If nothing changed, return null
+        if (!dirtyNpcs && !islandDelta && !hasRemovedNpcs) {
+            return null;
+        }
+
+        const delta = {
+            timestamp: Date.now()
+        };
+
+        if (dirtyNpcs) {
+            delta.npcs = dirtyNpcs;
+        }
+
+        if (hasRemovedNpcs) {
+            delta.removedNpcs = this.removedNpcIds;
+        }
+
+        if (islandDelta) {
+            delta.island = islandDelta;
+        }
+
+        delta.mc = this.mc;  // Always send MC (small payload)
+
+        return delta;
+    }
+
+    /**
+     * Clear delta tracking after broadcast
+     */
+    clearDeltaState() {
+        this.npcManager.clearDirtyFlags();
+        this.islandChanged = false;
+        this.removedNpcIds = [];
+        if (this.islandManager.getDeltaUpdate()) {
+            this.islandManager.clearDeltaUpdate();
+        }
     }
 
     /**
@@ -119,6 +170,7 @@ export class GameState {
                 if (npcIds) {
                     for (const npcId of npcIds) {
                         this.npcManager.removeNpc(npcId);
+                        this.removedNpcIds.push(npcId);  // Track for delta update
                         console.log(`💀 Despawned ${npcId} - MC dropped below threshold ${threshold.mc}`);
                     }
                     // Remove the mapping
@@ -133,8 +185,9 @@ export class GameState {
      */
     increaseMc(amount = 10000) {
         this.mc += amount;
-        const islandChanged = this.islandManager.updateForMC(this.mc);
-        if (islandChanged) {
+        const changed = this.islandManager.updateForMC(this.mc);
+        if (changed) {
+            this.islandChanged = true;
             console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
         this.checkAndSpawnNPCs();  // Check for new spawns
@@ -146,8 +199,9 @@ export class GameState {
      */
     decreaseMc(amount = 10000) {
         this.mc -= amount;
-        const islandChanged = this.islandManager.updateForMC(this.mc);
-        if (islandChanged) {
+        const changed = this.islandManager.updateForMC(this.mc);
+        if (changed) {
+            this.islandChanged = true;
             console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
         this.removeNPCsBelowThreshold();  // Optional: remove NPCs below threshold
@@ -159,8 +213,9 @@ export class GameState {
      */
     resetMc() {
         this.mc = 0;
-        const islandChanged = this.islandManager.updateForMC(this.mc);
-        if (islandChanged) {
+        const changed = this.islandManager.updateForMC(this.mc);
+        if (changed) {
+            this.islandChanged = true;
             console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
 
@@ -182,8 +237,9 @@ export class GameState {
     setMc(value) {
         const oldMc = this.mc;
         this.mc = value;
-        const islandChanged = this.islandManager.updateForMC(this.mc);
-        if (islandChanged) {
+        const changed = this.islandManager.updateForMC(this.mc);
+        if (changed) {
+            this.islandChanged = true;
             console.log(`🏝️ Island evolved for MC: ${this.mc}`);
         }
 

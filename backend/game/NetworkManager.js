@@ -9,7 +9,12 @@ export class NetworkManager {
         this.io = io;
         this.gameState = gameState;
         this.lastBroadcastTime = 0;
+        this.lastFullStateBroadcast = 0;
         this.connectedClients = 0;
+
+        // OPTIMIZATION: Adaptive broadcast configuration
+        this.DELTA_BROADCAST_INTERVAL = gameConfig.BROADCAST_INTERVAL;  // 50ms (20 FPS)
+        this.FULL_STATE_INTERVAL = 1000;  // 1 second - periodic full sync
     }
 
     /**
@@ -64,14 +69,37 @@ export class NetworkManager {
     }
 
     /**
-     * Broadcast game state to all clients (throttled)
+     * Broadcast game state to all clients (throttled with delta compression)
      * Called every frame but only broadcasts at configured rate
+     * OPTIMIZED: Sends delta updates (only changes) most of the time,
+     * with periodic full state for synchronization
      */
     broadcastState(currentTime) {
-        // Throttle broadcasts to configured rate (e.g., 30 FPS)
-        if (currentTime - this.lastBroadcastTime >= gameConfig.BROADCAST_INTERVAL) {
+        // Check if it's time to broadcast
+        if (currentTime - this.lastBroadcastTime < this.DELTA_BROADCAST_INTERVAL) {
+            return;  // Not time yet
+        }
+
+        // Determine if we should send full state or delta
+        const shouldSendFullState = (currentTime - this.lastFullStateBroadcast >= this.FULL_STATE_INTERVAL);
+
+        if (shouldSendFullState) {
+            // Send full state (periodic sync)
             const state = this.gameState.getState();
             this.io.emit('gameState', state);
+            this.lastFullStateBroadcast = currentTime;
+            this.lastBroadcastTime = currentTime;
+            this.gameState.clearDeltaState();  // Clear delta tracking
+        } else {
+            // Send delta update (only changes)
+            const delta = this.gameState.getDeltaState();
+
+            if (delta) {
+                // Only broadcast if there are changes
+                this.io.emit('gameStateDelta', delta);
+                this.gameState.clearDeltaState();
+            }
+
             this.lastBroadcastTime = currentTime;
         }
     }

@@ -11,6 +11,8 @@ import {
 import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
 import { OceanBackground } from "./OceanBackground";
+import { WalkableGridDebug } from "./WalkableGridDebug";
+import { NpcDebugOverlay } from "./NpcDebugOverlay";
 import { tileLoader } from '../helpers/TileLoader';
 import { useEffect, useState } from 'react';
 
@@ -26,6 +28,10 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Track tile loading state
   const [tilesLoaded, setTilesLoaded] = useState(false);
+
+  // Debug overlays visibility
+  const [showWalkableGrid, setShowWalkableGrid] = useState(false);
+  const [showNpcDebug, setShowNpcDebug] = useState(false);
 
   // Load tiles on mount
   useEffect(() => {
@@ -44,6 +50,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
   // Get MC and island data from backend gameState
   const mc = gameState?.mc || 0;
   const islandData = gameState?.island || null;
+  const walkableGrid = islandData?.walkableGrid || null;
 
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
@@ -160,6 +167,38 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
           >
             Reset
           </button>
+          <button
+            onClick={() => setShowWalkableGrid(!showWalkableGrid)}
+            style={{
+              padding: '8px 12px',
+              background: showWalkableGrid ? '#10b981' : '#374151',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              marginTop: '8px'
+            }}
+          >
+            {showWalkableGrid ? '✓ ' : ''}Grid
+          </button>
+          <button
+            onClick={() => setShowNpcDebug(!showNpcDebug)}
+            style={{
+              padding: '8px 12px',
+              background: showNpcDebug ? '#3b82f6' : '#374151',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              marginTop: '8px'
+            }}
+          >
+            {showNpcDebug ? '✓ ' : ''}NPC Debug
+          </button>
         </div>
       </div>
 
@@ -175,6 +214,15 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
               islandData={islandData}
               x={0}
               y={0}
+            />
+          )}
+
+          {/* DEBUG: Render Walkable Grid Overlay */}
+          {showWalkableGrid && walkableGrid && (
+            <WalkableGridDebug
+              walkableGrid={walkableGrid}
+              gridSize={gridSize}
+              visible={showWalkableGrid}
             />
           )}
 
@@ -195,6 +243,16 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
               />
             );
           })}
+
+          {/* DEBUG: NPC Anchor Points and Foot Positions */}
+          {showNpcDebug && (
+            <NpcDebugOverlay
+              npcs={npcs}
+              centerOffsetX={centerOffsetX}
+              centerOffsetY={centerOffsetY}
+              visible={showNpcDebug}
+            />
+          )}
         </container>
       </Application>
     </>

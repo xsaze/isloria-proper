@@ -13,6 +13,7 @@ export class NpcAI {
 
     /**
      * Update AI for a single NPC
+     * @returns {boolean} true if NPC state changed
      */
     update(npcId, npc, currentTime) {
         // Check if it's time to change direction/state
@@ -22,7 +23,10 @@ export class NpcAI {
         if (timeSinceChange >= gameConfig.ai.DIRECTION_CHANGE_INTERVAL) {
             this.changeDirectionAndState(npc);
             this.lastDirectionChange.set(npcId, currentTime);
+            return true;  // State changed
         }
+
+        return false;  // No change
     }
 
     /**
