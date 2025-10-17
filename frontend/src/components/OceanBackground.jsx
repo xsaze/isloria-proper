@@ -9,7 +9,7 @@ import { memo } from 'react';
  * Deep water color - matches the deep_water tile color
  * Sampled from deep_water tile texture
  */
-const OCEAN_COLOR = 0x2b5266; // Dark blue-green ocean color
+const OCEAN_COLOR = 0x172038; // Dark blue-green ocean color
 
 /**
  * OceanBackground Component

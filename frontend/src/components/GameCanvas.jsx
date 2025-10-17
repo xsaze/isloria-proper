@@ -58,9 +58,9 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     }
   };
 
-  const resetMc = () => {
+  const resetState = () => {
     if (socket) {
-      socket.emit('mc:reset');
+      socket.emit('game:reset');
     }
   };
 
@@ -146,7 +146,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
             - 10,000
           </button>
           <button
-            onClick={resetMc}
+            onClick={resetState}
             style={{
               padding: '8px 12px',
               background: '#6b7280',

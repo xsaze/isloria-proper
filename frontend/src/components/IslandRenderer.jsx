@@ -4,7 +4,7 @@
  * OPTIMIZED: Viewport culling for large islands (only renders visible tiles)
  */
 
-import { useMemo, useEffect, memo, useRef } from 'react';
+import { useMemo, useEffect, memo, useRef, useState, useCallback } from 'react';
 import { tileLoader } from '../helpers/TileLoader';
 import gsap from 'gsap';
 
@@ -68,7 +68,7 @@ function isTileInViewport(worldX, worldY, offsetX, offsetY) {
 /**
  * IsometricTile - A single isometric tile with mount animation
  */
-const IsometricTile = memo(function IsometricTile({ tileData, gridX, gridY }) {
+const IsometricTile = memo(function IsometricTile({ tileData, gridX, gridY, spriteRefs }) {
     const spriteRef = useRef(null);
 
     const texture = useMemo(() => {
@@ -79,6 +79,18 @@ const IsometricTile = memo(function IsometricTile({ tileData, gridX, gridY }) {
 
     const { x, y } = useMemo(() => gridToWorld(gridX, gridY), [gridX, gridY]);
     const zIndex = useMemo(() => calculateZIndex(gridX, gridY, 0), [gridX, gridY]);
+
+    // Store sprite ref in parent's map for exit animations
+    useEffect(() => {
+        if (spriteRef.current && spriteRefs) {
+            const key = `${gridX}-${gridY}`;
+            spriteRefs.current.set(key, spriteRef.current);
+
+            return () => {
+                spriteRefs.current.delete(key);
+            };
+        }
+    }, [gridX, gridY, spriteRefs]);
 
     // Mount animation: "Pop-in" effect
     useEffect(() => {
@@ -145,7 +157,7 @@ const IsometricTile = memo(function IsometricTile({ tileData, gridX, gridY }) {
         />
     );
 }, (prevProps, nextProps) => {
-    // Custom comparison - only re-render if tile data actually changed
+    // Custom comparison - re-render if any relevant prop changed
     return prevProps.gridX === nextProps.gridX &&
            prevProps.gridY === nextProps.gridY &&
            prevProps.tileData.tileType === nextProps.tileData.tileType &&
@@ -183,6 +195,12 @@ const IslandDecoration = memo(function IslandDecoration({ decoration, gridX, gri
  * IslandRenderer - Main island rendering component
  */
 export function IslandRenderer({ islandData, x = 0, y = 0 }) {
+    // Current rendered tiles state
+    const [currentTiles, setCurrentTiles] = useState([]);
+    const spriteRefsMap = useRef(new Map());
+    const pendingUpdateRef = useRef(false);
+    const prevTilesRef = useRef([]);
+
     if (!islandData || !tileLoader.isLoaded()) {
         return null;
     }
@@ -197,22 +215,118 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
     const centerOffsetX = (window.innerWidth / 2) - islandCenterX;
     const centerOffsetY = (window.innerHeight / 2) - islandCenterY;
 
-    // Render tiles with viewport culling
-    const tileElements = useMemo(() => {
-        if (!Array.isArray(tiles)) {
-            return [];
+    // Helper function to animate tile removal
+    const animateTileRemoval = useCallback((tile, onComplete) => {
+        const key = `${tile.x}-${tile.y}`;
+        const sprite = spriteRefsMap.current.get(key);
+
+        if (!sprite) {
+            onComplete();
+            return;
         }
 
+        // Kill any existing tweens
+        gsap.killTweensOf(sprite);
+        gsap.killTweensOf(sprite.scale);
+
+        // Ensure sprite is visible before animating out
+        sprite.alpha = 1;
+        sprite.scale.set(2);
+
+        // Create exit animation timeline (reverse of entry animation)
+        const timeline = gsap.timeline({
+            onComplete: onComplete
+        });
+
+        // Fade out alpha
+        timeline.to(sprite, {
+            alpha: 0,
+            duration: 0.4,
+            ease: "power2.in"
+        }, 0);
+
+        // Scale down with undershoot: 2.0 (100%) -> 1.8 (90%) -> 0
+        // First compress slightly
+        timeline.to(sprite.scale, {
+            x: 1.8,  // Undershoot to 90%
+            y: 1.8,
+            duration: 0.2,
+            ease: "power2.inOut"
+        }, 0);
+
+        // Then shrink to zero with bounce
+        timeline.to(sprite.scale, {
+            x: 0,
+            y: 0,
+            duration: 0.3,
+            ease: "back.in(2)"
+        }, 0.2);
+    }, []);
+
+    // Compare and handle state changes
+    useEffect(() => {
+        if (!Array.isArray(tiles)) return;
+
+        // Skip if we're already processing an update
+        if (pendingUpdateRef.current) return;
+
+        const prevTiles = prevTilesRef.current;
+
+        // First render - just set tiles
+        if (prevTiles.length === 0) {
+            setCurrentTiles(tiles);
+            prevTilesRef.current = tiles;
+            return;
+        }
+
+        // Check if tiles actually changed
+        const prevTileMap = new Map(prevTiles.map(t => [`${t.x}-${t.y}`, t]));
+        const newTileMap = new Map(tiles.map(t => [`${t.x}-${t.y}`, t]));
+
+        // Quick check: if same length and all keys exist, tiles haven't changed
+        if (prevTiles.length === tiles.length) {
+            const allSame = tiles.every(tile => prevTileMap.has(`${tile.x}-${tile.y}`));
+            if (allSame) {
+                return; // No change, don't update
+            }
+        }
+
+        // Find removed tiles
+        const removedTiles = prevTiles.filter(tile => !newTileMap.has(`${tile.x}-${tile.y}`));
+
+        // If tiles were removed, animate them first, then update state
+        if (removedTiles.length > 0) {
+            pendingUpdateRef.current = true;
+
+            let completedAnimations = 0;
+            const totalAnimations = removedTiles.length;
+
+            removedTiles.forEach(tile => {
+                animateTileRemoval(tile, () => {
+                    completedAnimations++;
+
+                    // When all animations complete, update state
+                    if (completedAnimations === totalAnimations) {
+                        setCurrentTiles(tiles);
+                        prevTilesRef.current = tiles;
+                        pendingUpdateRef.current = false;
+                    }
+                });
+            });
+        } else {
+            // Tiles were added or unchanged - update immediately (entry animation will play)
+            setCurrentTiles(tiles);
+            prevTilesRef.current = tiles;
+        }
+    }, [tiles, animateTileRemoval]);
+
+    // Render tiles with viewport culling
+    const tileElements = useMemo(() => {
         // Filter tiles by viewport visibility
-        const visibleTiles = tiles.filter(tile => {
+        const visibleTiles = currentTiles.filter(tile => {
             const { x: worldX, y: worldY } = gridToWorld(tile.x, tile.y);
             return isTileInViewport(worldX, worldY, centerOffsetX, centerOffsetY);
         });
-
-        // Log viewport culling stats (only in development)
-        if (process.env.NODE_ENV === 'development' && Math.random() < 0.01) {
-            console.log(`🔍 Viewport culling: ${visibleTiles.length}/${tiles.length} tiles visible`);
-        }
 
         return visibleTiles.map((tile) => {
             const tileKey = `${tile.tileType}-${tile.x}-${tile.y}`;
@@ -223,10 +337,11 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
                     tileData={tile}
                     gridX={tile.x}
                     gridY={tile.y}
+                    spriteRefs={spriteRefsMap}
                 />
             );
         });
-    }, [tiles, centerOffsetX, centerOffsetY]);
+    }, [currentTiles, centerOffsetX, centerOffsetY]);
 
     // Render decorations with viewport culling
     const decorationElements = useMemo(() => {
