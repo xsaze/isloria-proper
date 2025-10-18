@@ -239,18 +239,18 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
         });
 
         // Fade out alpha
-        timeline.to(sprite, {
-            alpha: 0,
-            duration: 0.4,
-            ease: "power2.in"
-        }, 0);
+        // timeline.to(sprite, {
+        //     alpha: 0.5,
+        //     duration: 0.4,
+        //     ease: "power2.in"
+        // }, 0);
 
         // Scale down with undershoot: 2.0 (100%) -> 1.8 (90%) -> 0
         // First compress slightly
         timeline.to(sprite.scale, {
             x: 1.8,  // Undershoot to 90%
             y: 1.8,
-            duration: 0.2,
+            duration: 0.1,
             ease: "power2.inOut"
         }, 0);
 

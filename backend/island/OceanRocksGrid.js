@@ -77,6 +77,49 @@ export class OceanRocksGrid {
     }
 
     /**
+     * Remove ocean rock at specific position (when island grows over it)
+     * @returns {boolean} true if rock was removed
+     */
+    removeRockAt(x, y) {
+        const index = this.oceanRocks.findIndex(rock => rock.x === x && rock.y === y);
+        if (index !== -1) {
+            this.oceanRocks.splice(index, 1);
+            console.log(`🌊 Removed ocean rock at (${x},${y}) - covered by island`);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remove multiple ocean rocks in a region (batch operation for performance)
+     * @param {Array} tiles - Array of tile objects with x,y coordinates
+     * @returns {number} Number of rocks removed
+     */
+    removeRocksInRegion(tiles) {
+        let removedCount = 0;
+
+        // Create Set for O(1) lookup
+        const tilePositions = new Set(tiles.map(t => `${t.x},${t.y}`));
+
+        // Filter out rocks that match any tile position
+        const originalLength = this.oceanRocks.length;
+        this.oceanRocks = this.oceanRocks.filter(rock => {
+            const key = `${rock.x},${rock.y}`;
+            if (tilePositions.has(key)) {
+                removedCount++;
+                return false; // Remove this rock
+            }
+            return true; // Keep this rock
+        });
+
+        if (removedCount > 0) {
+            console.log(`🌊 Removed ${removedCount} ocean rocks covered by ${tiles.length} island tiles`);
+        }
+
+        return removedCount;
+    }
+
+    /**
      * Get statistics
      */
     getStats() {

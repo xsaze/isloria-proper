@@ -5,7 +5,7 @@
 import { IslandGenerator } from './IslandGenerator.js';
 import { WalkableGrid } from './WalkableGrid.js';
 import { OceanRocksGrid } from './OceanRocksGrid.js';
-import { GRASS_VARIANTS, DIRT_VARIANTS, DEEP_WATER_VARIANTS } from './islandConfig.js';
+import { GRASS_VARIANTS, DIRT_VARIANTS, DEEP_WATER_VARIANTS, DECORATION_TYPES } from './islandConfig.js';
 
 export class IslandManager {
     constructor() {
@@ -50,6 +50,12 @@ export class IslandManager {
 
         // Calculate target land tiles based on MC
         this.targetLandTiles = IslandGenerator.calculateTargetLandTiles(mc);
+
+        // Remove ocean rocks covered by initial island + shallow water
+        if (this.oceanRocksGrid) {
+            const allTiles = [...islandData.tiles];  // Land + shallow water
+            this.oceanRocksGrid.removeRocksInRegion(allTiles);
+        }
 
         // Create/update walkable grid using the island's actual grid size
         this.walkableGrid = new WalkableGrid(islandData.gridSize);
@@ -242,6 +248,18 @@ export class IslandManager {
         // Update timestamp
         this.lastTileUpdate.timestamp = Date.now();
 
+        // Remove ocean rocks covered by new tiles
+        if (this.oceanRocksGrid && this.lastTileUpdate.added.length > 0) {
+            this.oceanRocksGrid.removeRocksInRegion(this.lastTileUpdate.added);
+        }
+
+        // Generate decorations for new tiles
+        const newDecorations = this.generateDecorationsForTiles(this.lastTileUpdate.added);
+        if (newDecorations.length > 0) {
+            this.currentIsland.decorations.push(...newDecorations);
+            console.log(`🌸 Added ${newDecorations.length} decorations to ${tilesToConvert} new tiles`);
+        }
+
         // console.log(`🌱 Island grew by ${tilesToConvert} tiles`);
         return tilesToConvert;
     }
@@ -320,8 +338,52 @@ export class IslandManager {
         // Update timestamp
         this.lastTileUpdate.timestamp = Date.now();
 
+        // Remove decorations on removed tiles
+        const removedPositions = new Set(this.lastTileUpdate.removed.map(t => `${t.x},${t.y}`));
+        const decorationsBefore = this.currentIsland.decorations.length;
+        this.currentIsland.decorations = this.currentIsland.decorations.filter(
+            deco => !removedPositions.has(`${deco.x},${deco.y}`)
+        );
+        const decorationsRemoved = decorationsBefore - this.currentIsland.decorations.length;
+        if (decorationsRemoved > 0) {
+            console.log(`🥀 Removed ${decorationsRemoved} decorations from ${tilesToConvert} removed tiles`);
+        }
+
         // console.log(`🌊 Island shrunk by ${tilesToConvert} tiles`);
         return tilesToConvert;
+    }
+
+    /**
+     * Generate decorations for newly added tiles
+     * Uses same logic as IslandGenerator to maintain consistency
+     * @param {Array} tiles - Array of tile objects with x,y coordinates
+     * @returns {Array} Array of decoration objects
+     */
+    generateDecorationsForTiles(tiles) {
+        const decorations = [];
+
+        for (const tile of tiles) {
+            // Only generate decorations on walkable land tiles
+            if (!tile.walkable) continue;
+
+            // Try each decoration type (same logic as IslandGenerator)
+            for (const [typeName, typeData] of Object.entries(DECORATION_TYPES)) {
+                if (Math.random() < typeData.weight) {
+                    const variant = typeData.variants[
+                        Math.floor(Math.random() * typeData.variants.length)
+                    ];
+                    decorations.push({
+                        x: tile.x,
+                        y: tile.y,
+                        variant,
+                        collision: typeData.collision
+                    });
+                    break;  // Only one decoration per tile
+                }
+            }
+        }
+
+        return decorations;
     }
 
     /**
