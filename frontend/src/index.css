@@ -5,3 +5,44 @@
   margin: 0;
   padding: 0;
 }
+
+/* Global retro RPG styles */
+body {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  background: #0a0a0f;
+  color: #f4e4c1;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+/* Custom scrollbar for RPG feel */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a0f08;
+  border: 2px solid #3d2817;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #8b6f47 0%, #3d2817 100%);
+  border: 2px solid #d4af37;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #a08050 0%, #4d3820 100%);
+  border-color: #e4bf47;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(212, 175, 55, 0.3);
+  color: #f4e4c1;
+}
+
+/* Disable smooth transitions for pixel-perfect feel */
+* {
+  transition: none;
+}

@@ -12,6 +12,7 @@ import { NpcManager } from './npc/NpcManager.js';
 import { GameState } from './game/GameState.js';
 import { GameLoop } from './game/GameLoop.js';
 import { NetworkManager } from './game/NetworkManager.js';
+import { PricePoller } from './services/PricePoller.js';
 
 // Setup Express
 const app = express();
@@ -28,7 +29,11 @@ npcManager.initialize();
 
 const gameState = new GameState(npcManager);
 const networkManager = new NetworkManager(io, gameState);
+const pricePoller = new PricePoller(gameState, networkManager);
 const gameLoop = new GameLoop(gameState, networkManager);
+
+// Update networkManager with pricePoller reference (circular dependency fix)
+networkManager.pricePoller = pricePoller;
 
 // Initialize network manager (sets up socket handlers)
 networkManager.initialize();
@@ -53,6 +58,7 @@ server.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n🛑 Shutting down server...');
+  pricePoller.stop();  // Stop price polling
   gameLoop.stop();
   server.close(() => {
     console.log('👋 Server shut down gracefully');

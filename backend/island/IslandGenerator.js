@@ -14,17 +14,21 @@ import {
     DECORATION_TYPES,
     WALK_CONFIG
 } from './islandConfig.js';
+import { BiomeGenerator } from './BiomeGenerator.js';
 
 export class IslandGenerator {
     /**
      * Generate island based on MC value - FIXED 80x80 GRID
      * OPTIMIZED: Only generates land and shallow water tiles (no ocean/deep water)
      */
-    static generate(mc) {
+    static generate(mc, seed = Date.now()) {
         const gridSize = 80;  // Always use 80x80 grid
         const targetLandTiles = this.calculateTargetLandTiles(mc);
         // Reduced logging - only log on significant generation
         // console.log(`🏝️ Generating island: ${gridSize}x${gridSize} (MC: ${mc}, Target tiles: ${targetLandTiles})`);
+
+        // Create biome generator with seed for deterministic generation
+        const biomeGenerator = new BiomeGenerator(seed);
 
         // OPTIMIZATION: Only store land tiles, not entire grid
         const landTiles = [];
@@ -36,8 +40,8 @@ export class IslandGenerator {
         // Grow island tile-by-tile until reaching target
         this.growIslandToTargetOptimized(landTiles, landTileSet, targetLandTiles, gridSize);
 
-        // Assign tile types to land tiles (grass vs dirt)
-        this.assignLandTileTypes(landTiles, gridSize);
+        // Assign tile types to land tiles using biome system
+        this.assignLandTileTypes(landTiles, gridSize, biomeGenerator);
 
         // Generate shallow water transitions
         const shallowWaterTiles = this.generateShallowWaterTransitions(landTileSet, gridSize);
@@ -45,13 +49,19 @@ export class IslandGenerator {
         // Combine land and shallow water tiles
         const tiles = [...landTiles, ...shallowWaterTiles];
 
-        // Generate decorations
-        const decorations = this.generateDecorationsFromSet(landTiles, landTileSet);
+        // Generate decorations using biome-specific weights and distance-based reduction
+        const decorations = this.generateDecorationsFromSet(landTiles, landTileSet, biomeGenerator, gridSize);
+
+        // Log biome distribution for debugging
+        const biomeStats = biomeGenerator.getBiomeStats(landTiles);
+        console.log(`🌍 Biome distribution: Grassland: ${biomeStats.grassland}, Forest: ${biomeStats.forest}, Rocky: ${biomeStats.rocky}`);
 
         return {
             gridSize,
             tiles,
-            decorations
+            decorations,
+            seed,  // Store seed for consistency during growth/shrink
+            biomeGenerator  // Pass biome generator for use in IslandManager
         };
     }
 
@@ -286,35 +296,18 @@ export class IslandGenerator {
     }
 
     /**
-     * Assign tile types to land tiles - OPTIMIZED VERSION
-     * Works directly on landTiles array instead of using grid indices
+     * Assign tile types to land tiles - BIOME-BASED VERSION
+     * Uses noise-based biome system instead of distance from center
      */
-    static assignLandTileTypes(landTiles, gridSize) {
-        const center = gridSize / 2;
+    static assignLandTileTypes(landTiles, gridSize, biomeGenerator) {
         const variantCounts = {};
 
         for (const tile of landTiles) {
-            // Calculate distance from center
-            const distFromCenter = Math.sqrt(
-                Math.pow(tile.x - center, 2) + Math.pow(tile.y - center, 2)
-            );
-            const maxDist = gridSize / 2;
-            const normalizedDist = distFromCenter / maxDist;
+            // Get tile type and variant from biome at this position
+            const { type, variant } = biomeGenerator.assignTileType(tile.x, tile.y);
 
-            // Center = grass, edges = dirt
-            if (normalizedDist < 0.4) {
-                tile.type = 'grass';
-                tile.variant = this.weightedRandom(GRASS_VARIANTS);
-            } else if (normalizedDist < 0.7) {
-                tile.type = Math.random() < 0.5 ? 'grass' : 'dirt';
-                tile.variant = tile.type === 'grass'
-                    ? this.weightedRandom(GRASS_VARIANTS)
-                    : this.weightedRandom(DIRT_VARIANTS);
-            } else {
-                tile.type = 'dirt';
-                tile.variant = this.weightedRandom(DIRT_VARIANTS);
-            }
-
+            tile.type = type;
+            tile.variant = variant;
             tile.walkable = true;
 
             // Track variants for debugging
@@ -385,17 +378,45 @@ export class IslandGenerator {
     }
 
     /**
-     * Generate decorations on land tiles
+     * Generate decorations on land tiles - BIOME-BASED VERSION
+     * Uses biome-specific decoration weights instead of global weights
+     * Reduces collision decorations near island center for better NPC spawning
      */
-    static generateDecorationsFromSet(tiles, landTileSet) {
+    static generateDecorationsFromSet(tiles, landTileSet, biomeGenerator, gridSize = 80) {
         const decorations = [];
+        const center = gridSize / 2;
+        const maxDist = gridSize / 2;
 
         for (const landKey of landTileSet) {
             const [x, y] = landKey.split(',').map(Number);
 
-            // Try each decoration type
-            for (const [typeName, typeData] of Object.entries(DECORATION_TYPES)) {
-                if (Math.random() < typeData.weight) {
+            // Calculate distance from center (normalized 0-1)
+            const distFromCenter = Math.sqrt(
+                Math.pow(x - center, 2) + Math.pow(y - center, 2)
+            );
+            const normalizedDist = distFromCenter / maxDist;
+
+            // Get biome-specific decoration weights
+            const biomeDecorations = biomeGenerator.getDecorationWeights(x, y);
+
+            // Try each decoration type with biome-specific weights
+            for (const [typeName, weight] of Object.entries(biomeDecorations)) {
+                // Get decoration data from global config to get variants and collision
+                const typeData = DECORATION_TYPES[typeName];
+                if (!typeData) continue;
+
+                // Apply distance-based multiplier for collision decorations
+                let adjustedWeight = weight;
+                if (typeData.collision) {
+                    // Center (0-20% radius): 1.5% collision decorations (reduced)
+                    // Rest (20%+ radius): 7% collision decorations (normal biome rate)
+                    if (normalizedDist < 0.2) {
+                        adjustedWeight = 0.015;  // 1.5% in center
+                    }
+                    // else: full biome weight for rest of island
+                }
+
+                if (Math.random() < adjustedWeight) {
                     const variant = typeData.variants[Math.floor(Math.random() * typeData.variants.length)];
                     decorations.push({
                         x,

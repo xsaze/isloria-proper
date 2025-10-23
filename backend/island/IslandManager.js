@@ -5,6 +5,7 @@
 import { IslandGenerator } from './IslandGenerator.js';
 import { WalkableGrid } from './WalkableGrid.js';
 import { OceanRocksGrid } from './OceanRocksGrid.js';
+import { BiomeGenerator } from './BiomeGenerator.js';
 import { GRASS_VARIANTS, DIRT_VARIANTS, DEEP_WATER_VARIANTS, DECORATION_TYPES } from './islandConfig.js';
 
 export class IslandManager {
@@ -12,6 +13,7 @@ export class IslandManager {
         this.currentIsland = null;
         this.walkableGrid = null;
         this.oceanRocksGrid = null;  // Prerendered ocean rocks (static)
+        this.biomeGenerator = null;  // Biome generator for consistent tile/decoration assignment
         this.lastMC = 0;
         this.maxGridSize = 80;  // Maximum island size
         this.targetLandTiles = 0;  // Target number of land tiles based on MC
@@ -43,10 +45,13 @@ export class IslandManager {
     regenerateIsland(mc) {
         // console.log(`🏝️ Generating island for MC: ${mc}`);
 
-        // Generate island with dynamic grid size
+        // Generate island with dynamic grid size and biome system
         const islandData = IslandGenerator.generate(mc);
         this.currentIsland = islandData;
         this.lastMC = mc;
+
+        // Store biome generator for consistent tile assignment during growth/shrink
+        this.biomeGenerator = islandData.biomeGenerator;
 
         // Calculate target land tiles based on MC
         this.targetLandTiles = IslandGenerator.calculateTargetLandTiles(mc);
@@ -185,9 +190,6 @@ export class IslandManager {
         // Get growth candidates
         const candidates = this.findGrowthCandidates();
 
-        // Calculate center for distance-based tile selection
-        const center = gridSize / 2;
-
         // Clear delta tracking
         this.lastTileUpdate.added = [];
         this.lastTileUpdate.removed = [];
@@ -198,27 +200,8 @@ export class IslandManager {
             const randomIndex = Math.floor(Math.random() * candidates.length);
             const {x, y} = candidates.splice(randomIndex, 1)[0];
 
-            // Calculate distance from center to determine tile type
-            const distFromCenter = Math.sqrt(
-                Math.pow(x - center, 2) + Math.pow(y - center, 2)
-            );
-            const maxDist = gridSize / 2;
-            const normalizedDist = distFromCenter / maxDist;
-
-            // Determine tile type and variant based on distance (same as IslandGenerator)
-            let tileType, tileVariant;
-            if (normalizedDist < 0.4) {
-                tileType = 'grass';
-                tileVariant = this.weightedRandom(GRASS_VARIANTS);
-            } else if (normalizedDist < 0.7) {
-                tileType = Math.random() < 0.5 ? 'grass' : 'dirt';
-                tileVariant = tileType === 'grass'
-                    ? this.weightedRandom(GRASS_VARIANTS)
-                    : this.weightedRandom(DIRT_VARIANTS);
-            } else {
-                tileType = 'dirt';
-                tileVariant = this.weightedRandom(DIRT_VARIANTS);
-            }
+            // Use biome generator to determine tile type and variant
+            const { type: tileType, variant: tileVariant } = this.biomeGenerator.assignTileType(x, y);
 
             // Convert water tile to land
             const key = `${x},${y}`;
@@ -305,32 +288,18 @@ export class IslandManager {
 
     /**
      * Shrink island by removing edge land tiles
+     * OPTIMIZED: Pre-calculates all removals to maintain uniform shape (like growth algorithm)
      */
     shrinkIsland(tilesToRemove) {
-        const { tiles } = this.currentIsland;
+        const { tiles, gridSize } = this.currentIsland;
 
         // Clear delta tracking
         this.lastTileUpdate.added = [];
         this.lastTileUpdate.removed = [];
 
-        // Get edge tiles
-        const edgeTiles = this.findEdgeTiles();
-
-        // Remove exact number of tiles requested
-        const tilesToConvert = Math.min(tilesToRemove, edgeTiles.length);
-        const tilesToRemoveSet = new Set();
-
-        for (let i = 0; i < tilesToConvert; i++) {
-            const randomIndex = Math.floor(Math.random() * edgeTiles.length);
-            const tile = edgeTiles.splice(randomIndex, 1)[0];
-            tilesToRemoveSet.add(tile);
-            this.lastTileUpdate.removed.push({
-                x: tile.x,
-                y: tile.y,
-                type: tile.type,
-                variant: tile.variant
-            });
-        }
+        // Pre-calculate all tiles to remove using distance-based weighting
+        // This prevents "clustering" where removing one tile exposes neighbors
+        const tilesToRemoveSet = this.selectTilesToRemove(tilesToRemove, tiles, gridSize);
 
         // Remove tiles from array
         this.currentIsland.tiles = tiles.filter(tile => !tilesToRemoveSet.has(tile));
@@ -346,29 +315,106 @@ export class IslandManager {
         );
         const decorationsRemoved = decorationsBefore - this.currentIsland.decorations.length;
         if (decorationsRemoved > 0) {
-            console.log(`🥀 Removed ${decorationsRemoved} decorations from ${tilesToConvert} removed tiles`);
+            console.log(`🥀 Removed ${decorationsRemoved} decorations from ${tilesToRemoveSet.size} removed tiles`);
         }
 
-        // console.log(`🌊 Island shrunk by ${tilesToConvert} tiles`);
-        return tilesToConvert;
+        // console.log(`🌊 Island shrunk by ${tilesToRemoveSet.size} tiles`);
+        return tilesToRemoveSet.size;
     }
 
     /**
-     * Generate decorations for newly added tiles
-     * Uses same logic as IslandGenerator to maintain consistency
+     * Select tiles to remove using distance-from-center weighting
+     * Prioritizes tiles furthest from center to maintain circular shape
+     */
+    selectTilesToRemove(tilesToRemove, tiles, gridSize) {
+        const center = gridSize / 2;
+        const tilesToRemoveSet = new Set();
+
+        // Get all edge tiles with their distance from center
+        const edgeTiles = this.findEdgeTiles();
+        const edgeTilesWithDistance = edgeTiles.map(tile => {
+            const distFromCenter = Math.sqrt(
+                Math.pow(tile.x - center, 2) + Math.pow(tile.y - center, 2)
+            );
+            return { tile, distFromCenter };
+        });
+
+        // Sort by distance (furthest first) for more uniform shrinking
+        edgeTilesWithDistance.sort((a, b) => b.distFromCenter - a.distFromCenter);
+
+        // Select tiles to remove, prioritizing outer edge
+        const tilesToConvert = Math.min(tilesToRemove, edgeTilesWithDistance.length);
+
+        for (let i = 0; i < tilesToConvert; i++) {
+            // Take from furthest edge with some randomness to avoid perfect circles
+            // Use weighted selection: 70% from outer 30%, 30% random
+            let selectedIndex;
+            if (Math.random() < 0.7) {
+                // Pick from outer 30% of edge tiles
+                const outerCount = Math.ceil(edgeTilesWithDistance.length * 0.3);
+                selectedIndex = Math.floor(Math.random() * outerCount);
+            } else {
+                // Pick randomly from all edge tiles
+                selectedIndex = Math.floor(Math.random() * edgeTilesWithDistance.length);
+            }
+
+            const { tile } = edgeTilesWithDistance.splice(selectedIndex, 1)[0];
+            tilesToRemoveSet.add(tile);
+            this.lastTileUpdate.removed.push({
+                x: tile.x,
+                y: tile.y,
+                type: tile.type,
+                variant: tile.variant
+            });
+        }
+
+        return tilesToRemoveSet;
+    }
+
+    /**
+     * Generate decorations for newly added tiles - BIOME-BASED VERSION
+     * Uses biome-specific decoration weights to maintain consistency
+     * Reduces collision decorations near island center for better NPC spawning
      * @param {Array} tiles - Array of tile objects with x,y coordinates
      * @returns {Array} Array of decoration objects
      */
     generateDecorationsForTiles(tiles) {
         const decorations = [];
+        const gridSize = this.currentIsland?.gridSize || 80;
+        const center = gridSize / 2;
+        const maxDist = gridSize / 2;
 
         for (const tile of tiles) {
             // Only generate decorations on walkable land tiles
             if (!tile.walkable) continue;
 
-            // Try each decoration type (same logic as IslandGenerator)
-            for (const [typeName, typeData] of Object.entries(DECORATION_TYPES)) {
-                if (Math.random() < typeData.weight) {
+            // Calculate distance from center (normalized 0-1)
+            const distFromCenter = Math.sqrt(
+                Math.pow(tile.x - center, 2) + Math.pow(tile.y - center, 2)
+            );
+            const normalizedDist = distFromCenter / maxDist;
+
+            // Get biome-specific decoration weights for this tile
+            const biomeDecorations = this.biomeGenerator.getDecorationWeights(tile.x, tile.y);
+
+            // Try each decoration type with biome-specific weights
+            for (const [typeName, weight] of Object.entries(biomeDecorations)) {
+                // Get decoration data from global config to get variants and collision
+                const typeData = DECORATION_TYPES[typeName];
+                if (!typeData) continue;
+
+                // Apply distance-based multiplier for collision decorations
+                let adjustedWeight = weight;
+                if (typeData.collision) {
+                    // Center (0-20% radius): 1.5% collision decorations (reduced)
+                    // Rest (20%+ radius): 7% collision decorations (normal biome rate)
+                    if (normalizedDist < 0.2) {
+                        adjustedWeight = 0.015;  // 1.5% in center
+                    }
+                    // else: full biome weight for rest of island
+                }
+
+                if (Math.random() < adjustedWeight) {
                     const variant = typeData.variants[
                         Math.floor(Math.random() * typeData.variants.length)
                     ];

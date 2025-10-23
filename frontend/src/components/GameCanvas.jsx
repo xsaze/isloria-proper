@@ -11,8 +11,7 @@ import {
 import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
 import { OceanBackground } from "./OceanBackground";
-import { WalkableGridDebug } from "./WalkableGridDebug";
-import { NpcDebugOverlay } from "./NpcDebugOverlay";
+import { Roadmap } from "./Roadmap";
 import { tileLoader } from '../helpers/TileLoader';
 import { useEffect, useState } from 'react';
 
@@ -29,9 +28,13 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
   // Track tile loading state
   const [tilesLoaded, setTilesLoaded] = useState(false);
 
-  // Debug overlays visibility
-  const [showWalkableGrid, setShowWalkableGrid] = useState(false);
-  const [showNpcDebug, setShowNpcDebug] = useState(false);
+  // Price polling state
+  const [priceAddress, setPriceAddress] = useState('5UwJMRYzXQNSyi7z7dPbFXP8Vzu7csD35bdyU8P9pump');
+  const [isPolling, setIsPolling] = useState(false);
+  const [lastPrice, setLastPrice] = useState(null);
+
+  // Control panel minimize state
+  const [isPanelMinimized, setIsPanelMinimized] = useState(false);
 
   // Load tiles on mount
   useEffect(() => {
@@ -46,6 +49,26 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
     loadTiles();
   }, []);
+
+  // Listen for price polling status updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePriceStatus = (status) => {
+      setIsPolling(status.isPolling);
+      setPriceAddress(status.address);
+      setLastPrice(status.lastPrice);
+    };
+
+    socket.on('price:status', handlePriceStatus);
+
+    // Request initial status
+    socket.emit('price:getStatus');
+
+    return () => {
+      socket.off('price:status', handlePriceStatus);
+    };
+  }, [socket]);
 
   // Get MC and island data from backend gameState
   const mc = gameState?.mc || 0;
@@ -68,6 +91,25 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
   const resetState = () => {
     if (socket) {
       socket.emit('game:reset');
+    }
+  };
+
+  // Price polling control functions
+  const startPolling = () => {
+    if (socket) {
+      socket.emit('price:start');
+    }
+  };
+
+  const stopPolling = () => {
+    if (socket) {
+      socket.emit('price:stop');
+    }
+  };
+
+  const updateAddress = () => {
+    if (socket && priceAddress) {
+      socket.emit('price:setAddress', priceAddress);
     }
   };
 
@@ -97,164 +139,289 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   return (
     <>
+      {/* Roadmap */}
+      <Roadmap />
+
       {/* MC Control Interface */}
       <div style={{
         position: 'absolute',
         top: 10,
-        right: 10,
+        left: 10,
         zIndex: 1000,
         background: 'rgba(0, 0, 0, 0.8)',
         color: 'white',
-        padding: '15px',
+        padding: isPanelMinimized ? '8px' : '15px',
         borderRadius: '8px',
         fontFamily: 'monospace',
-        minWidth: '200px'
+        minWidth: isPanelMinimized ? 'auto' : '280px',
+        transition: 'all 0.3s ease'
       }}>
-        <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
-          MC Control Panel
-        </div>
-        <div style={{
-          fontSize: '24px',
-          marginBottom: '15px',
-          textAlign: 'center',
-          color: mc >= 0 ? '#4ade80' : '#f87171'
-        }}>
-          {mc.toLocaleString()}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {isPanelMinimized ? (
           <button
-            onClick={increaseMc}
+            onClick={() => setIsPanelMinimized(false)}
             style={{
-              padding: '8px 12px',
-              background: '#22c55e',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
               color: 'white',
-              border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
+              padding: '6px 10px',
               fontSize: '14px',
               fontWeight: 'bold'
             }}
           >
-            + 10,000
+            +
           </button>
-          <button
-            onClick={decreaseMc}
-            style={{
-              padding: '8px 12px',
-              background: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            - 10,000
-          </button>
-          <button
-            onClick={resetState}
-            style={{
-              padding: '8px 12px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            Reset
-          </button>
-          <button
-            onClick={() => setShowWalkableGrid(!showWalkableGrid)}
-            style={{
-              padding: '8px 12px',
-              background: showWalkableGrid ? '#10b981' : '#374151',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              marginTop: '8px'
-            }}
-          >
-            {showWalkableGrid ? '✓ ' : ''}Grid
-          </button>
-          <button
-            onClick={() => setShowNpcDebug(!showNpcDebug)}
-            style={{
-              padding: '8px 12px',
-              background: showNpcDebug ? '#3b82f6' : '#374151',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              marginTop: '8px'
-            }}
-          >
-            {showNpcDebug ? '✓ ' : ''}NPC Debug
-          </button>
-        </div>
+        ) : (
+          <>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '10px'
+            }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                MC Control Panel
+              </div>
+              <button
+                onClick={() => setIsPanelMinimized(true)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}
+              >
+                −
+              </button>
+            </div>
+            <div style={{
+              fontSize: '24px',
+              marginBottom: '15px',
+              textAlign: 'center',
+              color: mc >= 0 ? '#4ade80' : '#f87171'
+            }}>
+              {mc.toLocaleString()}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
+              <button
+                onClick={increaseMc}
+                style={{
+                  padding: '8px 12px',
+                  background: '#22c55e',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                + 10,000
+              </button>
+              <button
+                onClick={decreaseMc}
+                style={{
+                  padding: '8px 12px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                - 10,000
+              </button>
+              <button
+                onClick={resetState}
+                style={{
+                  padding: '8px 12px',
+                  background: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Price Polling Section */}
+            <div style={{
+              borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+              paddingTop: '15px'
+            }}>
+              <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+                Birdseye Price Polling
+              </div>
+
+              {/* Status Indicator */}
+              <div style={{
+                marginBottom: '10px',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: isPolling ? '#22c55e' : '#6b7280'
+                }} />
+                <span>
+                  {isPolling ? 'Polling Active' : 'Polling Stopped'}
+                </span>
+              </div>
+
+              {/* Last Price Display */}
+              {lastPrice !== null && (
+                <div style={{
+                  marginBottom: '10px',
+                  fontSize: '11px',
+                  color: '#9ca3af'
+                }}>
+                  Last Price: ${lastPrice.toFixed(8)}
+                </div>
+              )}
+
+              {/* Address Input */}
+              <input
+                type="text"
+                value={priceAddress}
+                onChange={(e) => setPriceAddress(e.target.value)}
+                placeholder="Token Address"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  marginBottom: '8px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '4px',
+                  color: 'white',
+                  fontSize: '11px',
+                  fontFamily: 'monospace',
+                  boxSizing: 'border-box'
+                }}
+              />
+
+              {/* Update Address Button */}
+              <button
+                onClick={updateAddress}
+                disabled={isPolling}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  marginBottom: '8px',
+                  background: isPolling ? '#374151' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: isPolling ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  opacity: isPolling ? 0.5 : 1
+                }}
+              >
+                Update Address
+              </button>
+
+              {/* Start/Stop Buttons */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={startPolling}
+                  disabled={isPolling}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: isPolling ? '#065f46' : '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: isPolling ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    opacity: isPolling ? 0.5 : 1
+                  }}
+                >
+                  Start
+                </button>
+                <button
+                  onClick={stopPolling}
+                  disabled={!isPolling}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: !isPolling ? '#7f1d1d' : '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: !isPolling ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    opacity: !isPolling ? 0.5 : 1
+                  }}
+                >
+                  Stop
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Game Canvas */}
-      <Application resizeTo={window}>
-        <container sortableChildren>
-          {/* Render Ocean Background (simple colored rectangle) */}
-          <OceanBackground />
+      <div
+        style={{
+          width: '100%',
+          height: '100%'
+        }}
+      >
+        <Application resizeTo={window}>
+          <container
+            sortableChildren
+          >
+            {/* Render Ocean Background (simple colored rectangle) */}
+            <OceanBackground />
 
-          {/* Render Island (if tiles are loaded) */}
-          {tilesLoaded && islandData && (
-            <IslandRenderer
-              islandData={islandData}
-              x={0}
-              y={0}
-            />
-          )}
-
-          {/* DEBUG: Render Walkable Grid Overlay */}
-          {showWalkableGrid && walkableGrid && (
-            <WalkableGridDebug
-              walkableGrid={walkableGrid}
-              gridSize={gridSize}
-              visible={showWalkableGrid}
-            />
-          )}
-
-          {/* Render NPCs on top of island */}
-          {npcs.map(([npcId, npcData]) => {
-            // Adjust NPC position by half tile north to align with visual tile center
-            // In isometric view, half tile = 16px up
-            const npcYAdjustment = 0;
-            return (
-              <Npc
-                key={npcId}
-                frames={frames}
-                npcType={npcData.npcType || 'stag'}
-                x={npcData.x + centerOffsetX}
-                y={npcData.y + centerOffsetY + npcYAdjustment}
-                state={npcData.state || 'idle'}
-                direction={npcData.direction || 'NE'}
+            {/* Render Island (if tiles are loaded) */}
+            {tilesLoaded && islandData && (
+              <IslandRenderer
+                islandData={islandData}
+                x={0}
+                y={0}
               />
-            );
-          })}
+            )}
 
-          {/* DEBUG: NPC Anchor Points and Foot Positions */}
-          {showNpcDebug && (
-            <NpcDebugOverlay
-              npcs={npcs}
-              centerOffsetX={centerOffsetX}
-              centerOffsetY={centerOffsetY}
-              visible={showNpcDebug}
-            />
-          )}
-        </container>
-      </Application>
+            {/* Render NPCs on top of island */}
+            {npcs.map(([npcId, npcData]) => {
+              // Adjust NPC position by half tile north to align with visual tile center
+              // In isometric view, half tile = 16px up
+              const npcYAdjustment = 0;
+              return (
+                <Npc
+                  key={npcId}
+                  frames={frames}
+                  npcType={npcData.npcType || 'stag'}
+                  x={npcData.x + centerOffsetX}
+                  y={npcData.y + centerOffsetY + npcYAdjustment}
+                  state={npcData.state || 'idle'}
+                  direction={npcData.direction || 'NE'}
+                />
+              );
+            })}
+          </container>
+        </Application>
+      </div>
     </>
   )
 }

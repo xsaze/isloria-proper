@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { GameCanvas } from "./components/GameCanvas"
 import FramesPreLoader from "./components/FramesPreLoader";
+import { BottomBar } from "./components/BottomBar";
 
 const socket = io("http://localhost:3001", {
   transports: ['websocket', 'polling']
@@ -91,12 +92,18 @@ function App() {
 
 
 
+  // Calculate stats for BottomBar
+  const stats = gameState ? {
+    marketCap: gameState.mc,
+    totalNPCs: Object.keys(gameState.npcs || {}).length,
+    islandSize: gameState.island?.tiles?.length || 0,
+    activePlayers: 1 // TODO: Get actual player count from server
+  } : {};
+
   return (
     <>
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px', borderRadius: '5px' }}>
-        Status: {isConnected ? '✅ Connected' : '❌ Disconnected'}
-      </div>
       <GameCanvas gameState={gameState} frames={frames} socket={socket} />
+      <BottomBar stats={stats} />
     </>
   );
 }

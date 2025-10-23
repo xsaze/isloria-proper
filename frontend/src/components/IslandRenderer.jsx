@@ -165,9 +165,11 @@ const IsometricTile = memo(function IsometricTile({ tileData, gridX, gridY, spri
 });
 
 /**
- * IslandDecoration - Renders a decoration on a tile
+ * IslandDecoration - Renders a decoration on a tile with mount animation
  */
-const IslandDecoration = memo(function IslandDecoration({ decoration, gridX, gridY }) {
+const IslandDecoration = memo(function IslandDecoration({ decoration, gridX, gridY, spriteRefs }) {
+    const spriteRef = useRef(null);
+
     const texture = useMemo(() => {
         if (!tileLoader.isLoaded()) return null;
         const { decorationType, variant } = decoration;
@@ -177,29 +179,100 @@ const IslandDecoration = memo(function IslandDecoration({ decoration, gridX, gri
     const { x, y } = useMemo(() => gridToWorld(gridX, gridY), [gridX, gridY]);
     const zIndex = useMemo(() => calculateZIndex(gridX, gridY, 1), [gridX, gridY]);
 
+    // Store sprite ref in parent's map for exit animations
+    useEffect(() => {
+        if (spriteRef.current && spriteRefs) {
+            const key = `deco-${gridX}-${gridY}`;
+            spriteRefs.current.set(key, spriteRef.current);
+
+            return () => {
+                spriteRefs.current.delete(key);
+            };
+        }
+    }, [gridX, gridY, spriteRefs]);
+
+    // Mount animation: "Pop-in" effect (same as tiles)
+    useEffect(() => {
+        if (!spriteRef.current) return;
+
+        const sprite = spriteRef.current;
+
+        // Set initial state: invisible and zero scale
+        sprite.alpha = 0;
+        sprite.scale.set(0);
+
+        // Kill any existing tweens
+        gsap.killTweensOf(sprite);
+        gsap.killTweensOf(sprite.scale);
+
+        // Create animation timeline with bouncy overshoot
+        const timeline = gsap.timeline();
+
+        // Fade in alpha
+        timeline.to(sprite, {
+            alpha: 1,
+            duration: 0.4,
+            ease: "power2.out"
+        }, 0);
+
+        // Scale up with overshoot: 0 -> 2.2 (110%) -> 2.0 (100%)
+        timeline.to(sprite.scale, {
+            x: 2.2,  // Overshoot to 110%
+            y: 2.2,
+            duration: 0.3,
+            ease: "back.out(2)"
+        }, 0);
+
+        // Settle back to normal scale
+        timeline.to(sprite.scale, {
+            x: 2,
+            y: 2,
+            duration: 0.2,
+            ease: "power2.inOut"
+        }, 0.3);
+
+        // Cleanup: kill animations on unmount
+        return () => {
+            timeline.kill();
+            gsap.killTweensOf(sprite);
+            gsap.killTweensOf(sprite.scale);
+        };
+    }, []); // Run once on mount
+
     if (!texture) return null;
 
     return (
         <sprite
+            ref={spriteRef}
             texture={texture}
             x={x}
             y={y + TILE_CONFIG.DECORATION_Y_OFFSET}
             anchor={0.5}
             zIndex={zIndex}
-            scale={2}
+            alpha={0}
+            scale={0}
         />
     );
+}, (prevProps, nextProps) => {
+    // Custom comparison - re-render if any relevant prop changed
+    return prevProps.gridX === nextProps.gridX &&
+           prevProps.gridY === nextProps.gridY &&
+           prevProps.decoration.decorationType === nextProps.decoration.decorationType &&
+           prevProps.decoration.variant === nextProps.decoration.variant;
 });
 
 /**
  * IslandRenderer - Main island rendering component
  */
 export function IslandRenderer({ islandData, x = 0, y = 0 }) {
-    // Current rendered tiles state
+    // Current rendered tiles and decorations state
     const [currentTiles, setCurrentTiles] = useState([]);
+    const [currentDecorations, setCurrentDecorations] = useState([]);
     const spriteRefsMap = useRef(new Map());
     const pendingUpdateRef = useRef(false);
+    const pendingDecoUpdateRef = useRef(false);
     const prevTilesRef = useRef([]);
+    const prevDecorationsRef = useRef([]);
 
     if (!islandData || !tileLoader.isLoaded()) {
         return null;
@@ -238,13 +311,6 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
             onComplete: onComplete
         });
 
-        // Fade out alpha
-        // timeline.to(sprite, {
-        //     alpha: 0.5,
-        //     duration: 0.4,
-        //     ease: "power2.in"
-        // }, 0);
-
         // Scale down with undershoot: 2.0 (100%) -> 1.8 (90%) -> 0
         // First compress slightly
         timeline.to(sprite.scale, {
@@ -263,7 +329,46 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
         }, 0.2);
     }, []);
 
-    // Compare and handle state changes
+    // Helper function to animate decoration removal
+    const animateDecorationRemoval = useCallback((decoration, onComplete) => {
+        const key = `deco-${decoration.gridX}-${decoration.gridY}`;
+        const sprite = spriteRefsMap.current.get(key);
+
+        if (!sprite) {
+            onComplete();
+            return;
+        }
+
+        // Kill any existing tweens
+        gsap.killTweensOf(sprite);
+        gsap.killTweensOf(sprite.scale);
+
+        // Ensure sprite is visible before animating out
+        sprite.alpha = 1;
+        sprite.scale.set(2);
+
+        // Create exit animation timeline (same as tiles)
+        const timeline = gsap.timeline({
+            onComplete: onComplete
+        });
+
+        // Scale down with undershoot: 2.0 (100%) -> 1.8 (90%) -> 0
+        timeline.to(sprite.scale, {
+            x: 1.8,
+            y: 1.8,
+            duration: 0.1,
+            ease: "power2.inOut"
+        }, 0);
+
+        timeline.to(sprite.scale, {
+            x: 0,
+            y: 0,
+            duration: 0.3,
+            ease: "back.in(2)"
+        }, 0.2);
+    }, []);
+
+    // Compare and handle tile state changes
     useEffect(() => {
         if (!Array.isArray(tiles)) return;
 
@@ -320,6 +425,63 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
         }
     }, [tiles, animateTileRemoval]);
 
+    // Compare and handle decoration state changes
+    useEffect(() => {
+        if (!Array.isArray(decorations)) return;
+
+        // Skip if we're already processing an update
+        if (pendingDecoUpdateRef.current) return;
+
+        const prevDecorations = prevDecorationsRef.current;
+
+        // First render - just set decorations
+        if (prevDecorations.length === 0) {
+            setCurrentDecorations(decorations);
+            prevDecorationsRef.current = decorations;
+            return;
+        }
+
+        // Check if decorations actually changed
+        const prevDecoMap = new Map(prevDecorations.map(d => [`${d.gridX}-${d.gridY}`, d]));
+        const newDecoMap = new Map(decorations.map(d => [`${d.gridX}-${d.gridY}`, d]));
+
+        // Quick check: if same length and all keys exist, decorations haven't changed
+        if (prevDecorations.length === decorations.length) {
+            const allSame = decorations.every(deco => prevDecoMap.has(`${deco.gridX}-${deco.gridY}`));
+            if (allSame) {
+                return; // No change, don't update
+            }
+        }
+
+        // Find removed decorations
+        const removedDecorations = prevDecorations.filter(deco => !newDecoMap.has(`${deco.gridX}-${deco.gridY}`));
+
+        // If decorations were removed, animate them first, then update state
+        if (removedDecorations.length > 0) {
+            pendingDecoUpdateRef.current = true;
+
+            let completedAnimations = 0;
+            const totalAnimations = removedDecorations.length;
+
+            removedDecorations.forEach(deco => {
+                animateDecorationRemoval(deco, () => {
+                    completedAnimations++;
+
+                    // When all animations complete, update state
+                    if (completedAnimations === totalAnimations) {
+                        setCurrentDecorations(decorations);
+                        prevDecorationsRef.current = decorations;
+                        pendingDecoUpdateRef.current = false;
+                    }
+                });
+            });
+        } else {
+            // Decorations were added or unchanged - update immediately (entry animation will play)
+            setCurrentDecorations(decorations);
+            prevDecorationsRef.current = decorations;
+        }
+    }, [decorations, animateDecorationRemoval]);
+
     // Render tiles with viewport culling
     const tileElements = useMemo(() => {
         // Filter tiles by viewport visibility
@@ -345,23 +507,24 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
 
     // Render decorations with viewport culling
     const decorationElements = useMemo(() => {
-        if (!decorations || decorations.length === 0) return [];
+        if (!currentDecorations || currentDecorations.length === 0) return [];
 
         // Filter decorations by viewport visibility
-        const visibleDecorations = decorations.filter(decoration => {
+        const visibleDecorations = currentDecorations.filter(decoration => {
             const { x: worldX, y: worldY } = gridToWorld(decoration.gridX, decoration.gridY);
             return isTileInViewport(worldX, worldY, centerOffsetX, centerOffsetY);
         });
 
-        return visibleDecorations.map((decoration, index) => (
+        return visibleDecorations.map((decoration) => (
             <IslandDecoration
-                key={`decoration-${decoration.gridX}-${decoration.gridY}-${index}`}
+                key={`decoration-${decoration.gridX}-${decoration.gridY}`}
                 decoration={decoration}
                 gridX={decoration.gridX}
                 gridY={decoration.gridY}
+                spriteRefs={spriteRefsMap}
             />
         ));
-    }, [decorations, centerOffsetX, centerOffsetY]);
+    }, [currentDecorations, centerOffsetX, centerOffsetY]);
 
     return (
         <container

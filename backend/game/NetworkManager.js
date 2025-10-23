@@ -5,9 +5,10 @@
 import { gameConfig } from '../config/gameConfig.js';
 
 export class NetworkManager {
-    constructor(io, gameState) {
+    constructor(io, gameState, pricePoller = null) {
         this.io = io;
         this.gameState = gameState;
+        this.pricePoller = pricePoller;  // Will be set later to avoid circular dependency
         this.lastBroadcastTime = 0;
         this.lastFullStateBroadcast = 0;
         this.connectedClients = 0;
@@ -53,6 +54,40 @@ export class NetworkManager {
                 this.gameState.setMc(value);
                 // Immediately broadcast updated state
                 this.io.emit('gameState', this.gameState.getState());
+            });
+
+            socket.on('game:reset', () => {
+                console.log(`🔄 Reset requested by client ${socket.id}`);
+                this.gameState.resetGameState();
+                // Immediately broadcast fresh state to all clients
+                this.io.emit('gameState', this.gameState.getState());
+            });
+
+            // Price Polling Events
+            socket.on('price:start', () => {
+                console.log(`📈 Price polling start requested by ${socket.id}`);
+                this.pricePoller.start();
+                // Send status to all clients
+                this.io.emit('price:status', this.pricePoller.getStatus());
+            });
+
+            socket.on('price:stop', () => {
+                console.log(`📉 Price polling stop requested by ${socket.id}`);
+                this.pricePoller.stop();
+                // Send status to all clients
+                this.io.emit('price:status', this.pricePoller.getStatus());
+            });
+
+            socket.on('price:setAddress', (address) => {
+                console.log(`📝 Address update requested by ${socket.id}: ${address}`);
+                this.pricePoller.setAddress(address);
+                // Send status to all clients
+                this.io.emit('price:status', this.pricePoller.getStatus());
+            });
+
+            socket.on('price:getStatus', () => {
+                // Send current status to requesting client
+                socket.emit('price:status', this.pricePoller.getStatus());
             });
 
             socket.on('disconnect', () => {

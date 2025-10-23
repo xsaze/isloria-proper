@@ -10,7 +10,7 @@ export class GameState {
         this.npcManager = npcManager;
         this.startTime = Date.now();
         this.frameCount = 0;
-        this.mc = 0;  // MC (money/currency) state
+        this.mc = 5000;  // MC (money/currency) initial state
         this.islandManager = new IslandManager();
         this.islandManager.initialize(this.mc);  // Generate initial island
 
@@ -229,6 +229,43 @@ export class GameState {
         // Respawn NPCs for MC 0
         this.checkAndSpawnNPCs();
         console.log(`🔄 MC reset to 0`);
+    }
+
+    /**
+     * Reset entire game state to initial startup state
+     * - Regenerates island from scratch
+     * - Removes all NPCs
+     * - Resets MC to 0
+     * - Clears all tracking variables
+     */
+    resetGameState() {
+        console.log('🔄 Resetting game state to initial conditions...');
+
+        // Reset MC to initial value (5000)
+        this.mc = 5000;
+
+        // Remove all NPCs
+        const allNpcIds = Object.keys(this.npcManager.getNpcsAsObject());
+        for (const npcId of allNpcIds) {
+            this.npcManager.removeNpc(npcId);
+        }
+
+        // Reset spawn tracking
+        this.spawnedThresholds.clear();
+        this.thresholdToNpcs.clear();
+        this.nextNpcId = 1;
+
+        // Regenerate island from scratch (creates new biome seed, fresh generation)
+        this.islandManager.initialize(this.mc);
+        this.islandChanged = true;
+
+        // Reset delta tracking
+        this.removedNpcIds = allNpcIds;  // Mark all NPCs as removed for clients
+
+        // Spawn initial NPCs based on starting MC (5000)
+        this.checkAndSpawnNPCs();
+
+        console.log('✅ Game state reset complete - like server just started');
     }
 
     /**
