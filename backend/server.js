@@ -19,7 +19,11 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || "*"
+  }
+});
 
 // Initialize game systems
 console.log('🎮 Initializing game systems...');
@@ -42,7 +46,7 @@ networkManager.initialize();
 gameLoop.start();
 
 // Start HTTP server
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📊 Initial state:`, gameState.getStats());

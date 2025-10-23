@@ -8,11 +8,11 @@ export class PricePoller {
     constructor(gameState, networkManager) {
         this.gameState = gameState;
         this.networkManager = networkManager;
-        this.address = '5UwJMRYzXQNSyi7z7dPbFXP8Vzu7csD35bdyU8P9pump'; // Default address
+        this.address = process.env.DEFAULT_TOKEN_ADDRESS || '5UwJMRYzXQNSyi7z7dPbFXP8Vzu7csD35bdyU8P9pump';
         this.isPolling = false;
         this.pollInterval = null;
         this.POLL_INTERVAL_MS = 1100; // 1100ms polling interval
-        this.API_KEY = 'cdb14cd3cc944cc5aaaaef35e3b2be76';
+        this.API_KEY = process.env.BIRDSEYE_API_KEY || 'cdb14cd3cc944cc5aaaaef35e3b2be76';
         this.lastPrice = null;
     }
 

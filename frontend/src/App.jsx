@@ -4,7 +4,7 @@ import { GameCanvas } from "./components/GameCanvas"
 import FramesPreLoader from "./components/FramesPreLoader";
 import { BottomBar } from "./components/BottomBar";
 
-const socket = io("http://localhost:3001", {
+const socket = io(import.meta.env.VITE_API_URL || "http://localhost:3001", {
   transports: ['websocket', 'polling']
 });
 
