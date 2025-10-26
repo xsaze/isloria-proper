@@ -243,6 +243,9 @@ export class IslandManager {
             console.log(`🌸 Added ${newDecorations.length} decorations to ${tilesToConvert} new tiles`);
         }
 
+        // Regenerate shallow water border around expanded island
+        this.regenerateShallowWater();
+
         // console.log(`🌱 Island grew by ${tilesToConvert} tiles`);
         return tilesToConvert;
     }
@@ -318,6 +321,9 @@ export class IslandManager {
             console.log(`🥀 Removed ${decorationsRemoved} decorations from ${tilesToRemoveSet.size} removed tiles`);
         }
 
+        // Regenerate shallow water border around shrunk island
+        this.regenerateShallowWater();
+
         // console.log(`🌊 Island shrunk by ${tilesToRemoveSet.size} tiles`);
         return tilesToRemoveSet.size;
     }
@@ -369,6 +375,34 @@ export class IslandManager {
         }
 
         return tilesToRemoveSet;
+    }
+
+    /**
+     * Regenerate shallow water transitions around the island
+     * Creates a dynamic 1-tile shore border that updates as island grows/shrinks
+     */
+    regenerateShallowWater() {
+        const { tiles, gridSize } = this.currentIsland;
+
+        // Remove all existing shallow water tiles
+        const landTiles = tiles.filter(tile => tile.walkable);
+        this.currentIsland.tiles = landTiles;
+
+        // Create a Set of land tile positions for efficient lookup
+        const landTileSet = new Set(landTiles.map(tile => `${tile.x},${tile.y}`));
+
+        // Generate new shallow water tiles using IslandGenerator's method
+        const shallowWaterTiles = IslandGenerator.generateShallowWaterTransitions(landTileSet, gridSize);
+
+        // Add new shallow water tiles to island
+        this.currentIsland.tiles.push(...shallowWaterTiles);
+
+        // Remove ocean rocks covered by new shallow water
+        if (this.oceanRocksGrid && shallowWaterTiles.length > 0) {
+            this.oceanRocksGrid.removeRocksInRegion(shallowWaterTiles);
+        }
+
+        // console.log(`🌊 Regenerated ${shallowWaterTiles.length} shallow water tiles`);
     }
 
     /**
