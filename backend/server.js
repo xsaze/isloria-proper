@@ -2,6 +2,7 @@
  * Main server entry point - now using modular architecture!
  */
 
+import 'dotenv/config';
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -44,6 +45,14 @@ networkManager.initialize();
 
 // Start the game loop
 gameLoop.start();
+
+// Auto-start price polling if enabled via env var
+if (process.env.AUTO_START_PRICE_POLLING === 'true') {
+  pricePoller.start();
+  console.log('📈 Price polling auto-started (controlled by AUTO_START_PRICE_POLLING env var)');
+} else {
+  console.log('📊 Price polling disabled (set AUTO_START_PRICE_POLLING=true to enable)');
+}
 
 // Start HTTP server
 const PORT = process.env.PORT || 3001;

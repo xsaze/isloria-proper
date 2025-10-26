@@ -29,7 +29,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
   const [tilesLoaded, setTilesLoaded] = useState(false);
 
   // Price polling state
-  const [priceAddress, setPriceAddress] = useState('5UwJMRYzXQNSyi7z7dPbFXP8Vzu7csD35bdyU8P9pump');
+  const [priceAddress, setPriceAddress] = useState('...pump');
   const [isPolling, setIsPolling] = useState(false);
   const [lastPrice, setLastPrice] = useState(null);
 
@@ -142,7 +142,8 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
       {/* Roadmap */}
       <Roadmap />
 
-      {/* MC Control Interface */}
+      {/* MC Control Interface - Hidden in production */}
+      {import.meta.env.VITE_NODE_ENV !== 'production' && (
       <div style={{
         position: 'absolute',
         top: 10,
@@ -378,6 +379,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
           </>
         )}
       </div>
+      )}
 
       {/* Game Canvas */}
       <div

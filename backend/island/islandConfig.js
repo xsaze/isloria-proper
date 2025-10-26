@@ -99,7 +99,7 @@ export const DECORATION_TYPES = {
 export const WALK_CONFIG = {
     CARDINAL_WEIGHT: 0.70,  // 70% chance to move N/S/E/W
     DIAGONAL_WEIGHT: 0.30,  // 30% chance to move diagonally
-    OCEAN_ROCK_CHANCE: 0.02 // 2% chance for deep water to become ocean rock (reduced by 80%)
+    OCEAN_ROCK_CHANCE: 0.012 // 2% chance for deep water to become ocean rock (reduced by 80%)
 };
 
 // ============================================================================

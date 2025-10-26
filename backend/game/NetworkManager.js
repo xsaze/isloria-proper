@@ -63,32 +63,8 @@ export class NetworkManager {
                 this.io.emit('gameState', this.gameState.getState());
             });
 
-            // Price Polling Events
-            socket.on('price:start', () => {
-                console.log(`📈 Price polling start requested by ${socket.id}`);
-                this.pricePoller.start();
-                // Send status to all clients
-                this.io.emit('price:status', this.pricePoller.getStatus());
-            });
-
-            socket.on('price:stop', () => {
-                console.log(`📉 Price polling stop requested by ${socket.id}`);
-                this.pricePoller.stop();
-                // Send status to all clients
-                this.io.emit('price:status', this.pricePoller.getStatus());
-            });
-
-            socket.on('price:setAddress', (address) => {
-                console.log(`📝 Address update requested by ${socket.id}: ${address}`);
-                this.pricePoller.setAddress(address);
-                // Send status to all clients
-                this.io.emit('price:status', this.pricePoller.getStatus());
-            });
-
-            socket.on('price:getStatus', () => {
-                // Send current status to requesting client
-                socket.emit('price:status', this.pricePoller.getStatus());
-            });
+            // Price Polling Events - REMOVED for security
+            // Price polling is now controlled server-side only via AUTO_START_PRICE_POLLING env var
 
             socket.on('disconnect', () => {
                 this.connectedClients--;

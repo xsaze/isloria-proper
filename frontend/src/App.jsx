@@ -96,8 +96,7 @@ function App() {
   const stats = gameState ? {
     marketCap: gameState.mc,
     totalNPCs: Object.keys(gameState.npcs || {}).length,
-    islandSize: gameState.island?.tiles?.length || 0,
-    activePlayers: 1 // TODO: Get actual player count from server
+    islandSize: gameState.island?.tiles?.length || 0
   } : {};
 
   return (

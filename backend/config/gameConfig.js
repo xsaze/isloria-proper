@@ -41,15 +41,15 @@ export const gameConfig = {
         thresholds: [
             { mc: 5000, npcType: 'player', count: 1 },
             { mc: 30000, npcType: 'stag', count: 1 },
-            { mc: 50000, npcType: 'boar', count: 1 },
-            { mc: 70000, npcType: 'wolf', count: 1 },
-            { mc: 90000, npcType: 'stag', count: 1 },
-            { mc: 100000, npcType: 'stag', count: 1 },
-            { mc: 120000, npcType: 'wolf', count: 1 },
-            { mc: 130000, npcType: 'boar', count: 1 },
-            { mc: 140000, npcType: 'wolf', count: 1 },
-            { mc: 150000, npcType: 'stag', count: 1 },
-            { mc: 160000, npcType: 'boar', count: 1 }
+            { mc: 70000, npcType: 'boar', count: 1 },
+            { mc: 100000, npcType: 'wolf', count: 1 },
+            { mc: 110000, npcType: 'stag', count: 1 },
+            { mc: 125000, npcType: 'stag', count: 1 },
+            { mc: 135000, npcType: 'wolf', count: 1 },
+            { mc: 150000, npcType: 'boar', count: 1 },
+            { mc: 170000, npcType: 'wolf', count: 1 },
+            { mc: 200000, npcType: 'stag', count: 1 },
+            { mc: 220000, npcType: 'boar', count: 1 }
         ],
         spawnRadius: 5,  // Spawn NPCs within 5 tiles of center
         defaultSpeed: {
