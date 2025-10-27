@@ -49,7 +49,11 @@ export const gameConfig = {
             { mc: 150000, npcType: 'boar', count: 1 },
             { mc: 170000, npcType: 'wolf', count: 1 },
             { mc: 200000, npcType: 'stag', count: 1 },
-            { mc: 220000, npcType: 'boar', count: 1 }
+            { mc: 220000, npcType: 'boar', count: 1 },
+            { mc: 270000, npcType: 'wolf', count: 1 },
+            { mc: 320000, npcType: 'stag', count: 1 },
+            { mc: 400000, npcType: 'boar', count: 1 }
+
         ],
         spawnRadius: 5,  // Spawn NPCs within 5 tiles of center
         defaultSpeed: {

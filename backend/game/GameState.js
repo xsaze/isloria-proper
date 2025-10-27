@@ -33,7 +33,7 @@ export class GameState {
      * Get token address from environment variable
      */
     getTokenAddress() {
-        return process.env.DEFAULT_TOKEN_ADDRESS || '5UwJMRYzXQNSyi7z7dPbFXP8Vzu7csD35bdyU8P9pump';
+        return process.env.DEFAULT_TOKEN_ADDRESS || '...pump';
     }
 
     /**
