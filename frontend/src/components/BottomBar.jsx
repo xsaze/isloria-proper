@@ -6,11 +6,11 @@ export const BottomBar = ({ stats = {} }) => {
     marketCap = 0,
     totalNPCs = 0,
     islandSize = 0,
-    activePlayers = 0
+    activePlayers = 0,
+    tokenAddress = '...pump'
   } = stats;
 
   const [displayMC, setDisplayMC] = useState('...');
-  const tokenAddress = import.meta.env.VITE_DEFAULT_TOKEN_ADDRESS || '...pump';
 
   useEffect(() => {
     if (marketCap !== null && marketCap !== undefined) {
@@ -34,7 +34,13 @@ export const BottomBar = ({ stats = {} }) => {
             <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
           </svg>
         </a>
-        <a href="#" className="social-link" title="Pump.fun">
+        <a
+          href={`https://pump.fun/coin/${tokenAddress}`}
+          className="social-link"
+          title="Pump.fun"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <ellipse cx="12" cy="12" rx="8" ry="4" transform="rotate(-45 12 12)"/>
             <line x1="8" y1="8" x2="16" y2="16" strokeWidth="2"/>

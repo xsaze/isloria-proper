@@ -30,6 +30,13 @@ export class GameState {
     }
 
     /**
+     * Get token address from environment variable
+     */
+    getTokenAddress() {
+        return process.env.DEFAULT_TOKEN_ADDRESS || '5UwJMRYzXQNSyi7z7dPbFXP8Vzu7csD35bdyU8P9pump';
+    }
+
+    /**
      * Get current game state as object for network transmission
      */
     getState() {
@@ -38,7 +45,8 @@ export class GameState {
             mc: this.mc,
             island: this.islandManager.getIslandData(),
             frameCount: this.frameCount,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            tokenAddress: this.getTokenAddress()
         };
     }
 

@@ -47,6 +47,11 @@ function App() {
           newState.mc = delta.mc;
         }
 
+        // Update token address if changed (rare, but important)
+        if (delta.tokenAddress !== undefined) {
+          newState.tokenAddress = delta.tokenAddress;
+        }
+
         // Merge NPC updates
         if (delta.npcs) {
           newState.npcs = {
@@ -96,7 +101,8 @@ function App() {
   const stats = gameState ? {
     marketCap: gameState.mc,
     totalNPCs: Object.keys(gameState.npcs || {}).length,
-    islandSize: gameState.island?.tiles?.length || 0
+    islandSize: gameState.island?.tiles?.length || 0,
+    tokenAddress: gameState.tokenAddress
   } : {};
 
   return (
