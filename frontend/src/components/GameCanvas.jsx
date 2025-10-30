@@ -408,7 +408,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
             {npcs.map(([npcId, npcData]) => {
               // Adjust NPC position by half tile north to align with visual tile center
               // In isometric view, half tile = 16px up
-              const npcYAdjustment = 0;
+              const npcYAdjustment = -24;
               return (
                 <Npc
                   key={npcId}
