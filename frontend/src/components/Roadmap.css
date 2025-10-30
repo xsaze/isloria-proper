@@ -223,12 +223,18 @@
   font-size: 10px;
 }
 
-.roadmap-phase.completed .phase-items li::before {
+/* Individual item status symbols */
+.phase-items li.completed::before {
   content: '✓';
   color: #10b981;
 }
 
-.roadmap-phase.current .phase-items li::before {
+.phase-items li.current::before {
   content: '◆';
   color: #f59e0b;
+}
+
+.phase-items li.upcoming::before {
+  content: '✦';
+  color: #6b7280;
 }
