@@ -1,14 +1,22 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/font.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 *,
 #root {
   margin: 0;
   padding: 0;
+  font-family: 'CustomFont', 'Georgia', 'Times New Roman', serif !important;
 }
 
 /* Global retro RPG styles */
 body {
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: 'CustomFont', 'Georgia', 'Times New Roman', serif;
   background: #0a0a0f;
   color: #f4e4c1;
   overflow: hidden;
