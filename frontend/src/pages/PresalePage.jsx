@@ -240,7 +240,7 @@ export default function PresalePage() {
         <p style={{ marginBottom: '8px' }}>Binaria — Presale powered by x402 protocol</p>
         <p>
           <a href="https://binaria.fun" className="footer-link">
-            « Return to Main Game
+            « Return to Main Page
           </a>
         </p>
       </footer>

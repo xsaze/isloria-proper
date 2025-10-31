@@ -13,6 +13,7 @@ import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
 import { OceanBackground } from "./OceanBackground";
 import { Roadmap } from "./Roadmap";
+import { Presale } from "./Presale";
 import { MobileTutorialOverlay } from "./MobileTutorialOverlay";
 import { tileLoader } from '../helpers/TileLoader';
 import { CustomViewport } from '../helpers/CustomViewport';
@@ -292,6 +293,9 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     <>
       {/* Roadmap */}
       <Roadmap />
+
+      {/* Presale */}
+      <Presale />
 
       {/* Mobile Tutorial Overlay */}
       <MobileTutorialOverlay
