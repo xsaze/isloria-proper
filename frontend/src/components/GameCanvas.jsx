@@ -6,27 +6,42 @@ import {
   Container,
   Graphics,
   AnimatedSprite,
-  Sprite
+  Sprite,
+  Text
 } from 'pixi.js'
 import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
 import { OceanBackground } from "./OceanBackground";
 import { Roadmap } from "./Roadmap";
+import { DebugOverlays } from "./DebugOverlays";
 import { tileLoader } from '../helpers/TileLoader';
-import { useEffect, useState } from 'react';
+import { CustomViewport } from '../helpers/CustomViewport';
+import { pixiState } from '../helpers/pixiState';
+import { useEffect, useState, useMemo, useRef } from 'react';
 
 
 extend({
   Container,
   Graphics,
   AnimatedSprite,
-  Sprite
+  Sprite,
+  Text,
+  Viewport: CustomViewport
 })
 
 export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Track tile loading state
   const [tilesLoaded, setTilesLoaded] = useState(false);
+
+  // Track when Pixi Application is ready
+  const [isAppReady, setIsAppReady] = useState(false);
+
+  // Viewport ref
+  const viewportRef = useRef(null);
+
+  // Track if viewport has been initially centered (to prevent re-centering on updates)
+  const hasInitializedViewport = useRef(false);
 
   // Price polling state
   const [priceAddress, setPriceAddress] = useState('...pump');
@@ -35,6 +50,9 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Control panel minimize state
   const [isPanelMinimized, setIsPanelMinimized] = useState(false);
+
+  // Debug overlays state (toggle with 'D' key)
+  const [showDebugOverlays, setShowDebugOverlays] = useState(true);
 
   // Load tiles on mount
   useEffect(() => {
@@ -74,6 +92,92 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
   const mc = gameState?.mc || 0;
   const islandData = gameState?.island || null;
   const walkableGrid = islandData?.walkableGrid || null;
+
+  // Calculate world bounds based on ocean (not island)
+  // Ocean spans (0, 0) to (10000, 10000) in positive coordinate space
+  const worldBounds = useMemo(() => {
+    return {
+      worldWidth: 10000,   // Match OceanBackground size
+      worldHeight: 10000,  // Match OceanBackground size
+      centerX: 5000,       // Ocean center in positive coordinate space
+      centerY: 5000        // Ocean center in positive coordinate space
+    };
+  }, []); // Static - ocean size doesn't change
+
+  // Handle Application initialization
+  const handleAppInit = (app) => {
+    // Store app in global state
+    pixiState.pixiApp = app;
+
+    // Mark app as ready
+    setIsAppReady(true);
+  };
+
+  // Center viewport on ocean/island center when ready (only once at initialization)
+  useEffect(() => {
+    // Only center once, when app first becomes ready
+    if (!isAppReady || !viewportRef.current || hasInitializedViewport.current) {
+      return;
+    }
+
+    // Mobile needs longer delay and double-resize to ensure dimensions are correct
+    const isMobile = window.innerWidth <= 768;
+    const delay = isMobile ? 200 : 50;
+
+    const timer = setTimeout(() => {
+      if (viewportRef.current) {
+        // Force viewport to sync with current window dimensions
+        viewportRef.current.resize(window.innerWidth, window.innerHeight);
+
+        // Mobile: Second resize after brief delay to ensure dimensions are fully updated
+        if (isMobile) {
+          setTimeout(() => {
+            if (viewportRef.current) {
+              viewportRef.current.resize(window.innerWidth, window.innerHeight);
+
+              // Center viewport on ocean center (5000, 5000) where island is positioned
+              viewportRef.current.moveCenter(5000, 5000);
+              viewportRef.current.setZoom(1.0, false);
+
+              hasInitializedViewport.current = true; // Mark as initialized
+            }
+          }, 50);
+        } else {
+          // Desktop: Center immediately after resize
+          viewportRef.current.moveCenter(5000, 5000);
+          viewportRef.current.setZoom(1.0, false);
+
+          hasInitializedViewport.current = true; // Mark as initialized
+        }
+      }
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [isAppReady]);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (viewportRef.current) {
+        viewportRef.current.resize(window.innerWidth, window.innerHeight);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Handle debug overlay toggle (press 'D' key)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'd' || e.key === 'D') {
+        setShowDebugOverlays(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
@@ -119,23 +223,6 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Extract NPCs array from gameState, or use empty array as fallback
   const npcs = gameState?.npcs ? Object.entries(gameState.npcs) : [];
-
-  // Calculate offset to center everything on screen
-  // The island's center tile should be at the screen center
-  const gridSize = islandData?.gridSize || 5;
-  const centerTile = Math.floor(gridSize / 2);
-
-  // Calculate where the center tile is in world coordinates (backend coordinate system)
-  const TILE_WIDTH = 64;
-  const TILE_HEIGHT = 32;
-  const backendOriginX = 400;
-  const backendOriginY = 200;
-  const islandCenterX = ((centerTile - centerTile) * (TILE_WIDTH / 2)) + backendOriginX;
-  const islandCenterY = ((centerTile + centerTile) * (TILE_HEIGHT / 2)) + backendOriginY;
-
-  // Calculate offset to center the island's center tile on screen
-  const centerOffsetX = (window.innerWidth / 2) - islandCenterX;
-  const centerOffsetY = (window.innerHeight / 2) - islandCenterY;
 
   return (
     <>
@@ -388,40 +475,60 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
           height: '100%'
         }}
       >
-        <Application resizeTo={window}>
-          <container
-            sortableChildren
-          >
-            {/* Render Ocean Background (simple colored rectangle) */}
-            <OceanBackground />
+        <Application resizeTo={window} onInit={handleAppInit}>
+          {/* Only render viewport after app is ready */}
+          {isAppReady && (
+            <pixiViewport
+              ref={viewportRef}
+              screenWidth={window.innerWidth}
+              screenHeight={window.innerHeight}
+              worldWidth={worldBounds.worldWidth}
+              worldHeight={worldBounds.worldHeight}
+            >
+              <container sortableChildren>
+                {/* Render Ocean Background (simple colored rectangle) */}
+                <OceanBackground />
 
-            {/* Render Island (if tiles are loaded) */}
-            {tilesLoaded && islandData && (
-              <IslandRenderer
-                islandData={islandData}
-                x={0}
-                y={0}
-              />
-            )}
+                {/* Render Island (if tiles are loaded) */}
+                {/* Tiles position themselves at (5000, 5000) via gridToWorld() function */}
+                {tilesLoaded && islandData && (
+                  <IslandRenderer
+                    islandData={islandData}
+                    viewportRef={viewportRef}
+                    x={0}
+                    y={0}
+                  />
+                )}
 
-            {/* Render NPCs on top of island */}
-            {npcs.map(([npcId, npcData]) => {
-              // Adjust NPC position by half tile north to align with visual tile center
-              // In isometric view, half tile = 16px up
-              const npcYAdjustment = -24;
-              return (
-                <Npc
-                  key={npcId}
-                  frames={frames}
-                  npcType={npcData.npcType || 'stag'}
-                  x={npcData.x + centerOffsetX}
-                  y={npcData.y + centerOffsetY + npcYAdjustment}
-                  state={npcData.state || 'idle'}
-                  direction={npcData.direction || 'NE'}
-                />
-              );
-            })}
-          </container>
+                {/* Render NPCs on top of island */}
+                {/* NPCs must be offset to match island position in positive coordinate space */}
+                {npcs.map(([npcId, npcData]) => {
+                  // Adjust NPC position by half tile north to align with visual tile center
+                  // In isometric view, half tile = 16px up
+                  const npcYAdjustment = -24;
+                  return (
+                    <Npc
+                      key={npcId}
+                      frames={frames}
+                      npcType={npcData.npcType || 'stag'}
+                      x={npcData.x + 4600}
+                      y={npcData.y + 3520 + npcYAdjustment}
+                      state={npcData.state || 'idle'}
+                      direction={npcData.direction || 'NE'}
+                    />
+                  );
+                })}
+
+                {/* Debug Overlays - Toggle with 'D' key */}
+                {showDebugOverlays && (
+                  <DebugOverlays
+                    islandData={islandData}
+                    viewportRef={viewportRef}
+                  />
+                )}
+              </container>
+            </pixiViewport>
+          )}
         </Application>
       </div>
     </>

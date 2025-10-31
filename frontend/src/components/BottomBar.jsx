@@ -50,12 +50,12 @@ export const BottomBar = ({ stats = {} }) => {
 
       <div className="bottom-bar-section stats">
         <div className="stat-item">
-          <span className="stat-label">CA:</span>
+          <span className="stat-label">CA </span>
           <span className="stat-value">{tokenAddress}</span>
         </div>
         <div className="stat-divider">|</div>
         <div className="stat-item">
-          <span className="stat-label">market cap:</span>
+          <span className="stat-label">market cap </span>
           <span className="stat-value">${displayMC}</span>
         </div>
       </div>

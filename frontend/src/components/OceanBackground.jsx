@@ -20,8 +20,8 @@ export const OceanBackground = memo(function OceanBackground() {
     const drawOcean = (g) => {
         g.clear();
         g.beginFill(OCEAN_COLOR);
-        // Make it very large to cover any screen size
-        g.drawRect(-5000, -5000, 10000, 10000);
+        // Ocean in positive coordinate space: (0, 0) to (10000, 10000)
+        g.drawRect(0, 0, 10000, 10000);
         g.endFill();
     };
 

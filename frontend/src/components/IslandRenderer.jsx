@@ -33,7 +33,13 @@ function gridToWorld(gridX, gridY) {
     const worldX = ((gridX - gridY) * (TILE_WIDTH / 2)) + backendOriginX;
     const worldY = ((gridX + gridY) * (TILE_HEIGHT / 2)) + backendOriginY;
 
-    return { x: worldX, y: worldY };
+    // Shift to positive coordinate space (0, 0) to (10000, 10000)
+    // For 80x80 grid, center is at grid(40,40) = world(400, 1480)
+    // Shift to align island center with ocean center (5000, 5000)
+    const shiftX = 4600; // 5000 - 400 = 4600
+    const shiftY = 3520; // 5000 - 1480 = 3520
+
+    return { x: worldX + shiftX, y: worldY + shiftY };
 }
 
 /**
@@ -48,20 +54,22 @@ function calculateZIndex(gridX, gridY, layer = 0) {
 /**
  * Check if a tile is within the viewport bounds (with padding)
  */
-function isTileInViewport(worldX, worldY, offsetX, offsetY) {
-    const { VIEWPORT_PADDING, TILE_WIDTH, TILE_HEIGHT } = TILE_CONFIG;
-    const screenX = worldX + offsetX;
-    const screenY = worldY + offsetY;
+function isTileInViewport(worldX, worldY, viewport) {
+    if (!viewport) return true; // Render all if no viewport
 
-    // Account for tile size and scale (tiles are rendered at 2x scale)
-    const tileVisualWidth = TILE_WIDTH * 2;
-    const tileVisualHeight = TILE_HEIGHT * 2;
+    const { VIEWPORT_PADDING } = TILE_CONFIG;
+    const bounds = {
+        left: viewport.left - VIEWPORT_PADDING,
+        right: viewport.right + VIEWPORT_PADDING,
+        top: viewport.top - VIEWPORT_PADDING,
+        bottom: viewport.bottom + VIEWPORT_PADDING
+    };
 
     return (
-        screenX + tileVisualWidth >= -VIEWPORT_PADDING &&
-        screenX - tileVisualWidth <= window.innerWidth + VIEWPORT_PADDING &&
-        screenY + tileVisualHeight >= -VIEWPORT_PADDING &&
-        screenY - tileVisualHeight <= window.innerHeight + VIEWPORT_PADDING
+        worldX >= bounds.left &&
+        worldX <= bounds.right &&
+        worldY >= bounds.top &&
+        worldY <= bounds.bottom
     );
 }
 
@@ -264,10 +272,11 @@ const IslandDecoration = memo(function IslandDecoration({ decoration, gridX, gri
 /**
  * IslandRenderer - Main island rendering component
  */
-export function IslandRenderer({ islandData, x = 0, y = 0 }) {
+export function IslandRenderer({ islandData, viewportRef, x = 0, y = 0 }) {
     // Current rendered tiles and decorations state
     const [currentTiles, setCurrentTiles] = useState([]);
     const [currentDecorations, setCurrentDecorations] = useState([]);
+    const [viewportVersion, setViewportVersion] = useState(0);
     const spriteRefsMap = useRef(new Map());
     const pendingUpdateRef = useRef(false);
     const pendingDecoUpdateRef = useRef(false);
@@ -278,15 +287,32 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
         return null;
     }
 
-    const { gridSize, tiles, decorations } = islandData;
+    const { tiles, decorations } = islandData;
 
-    // Calculate offset to center the island on screen
-    const centerTile = Math.floor(gridSize / 2);
-    const { x: islandCenterX, y: islandCenterY } = gridToWorld(centerTile, centerTile, gridSize);
+    // Listen to viewport move/zoom events to trigger re-culling
+    useEffect(() => {
+        if (!viewportRef?.current) return;
 
-    // Calculate how much to offset to center the island's center tile on screen
-    const centerOffsetX = (window.innerWidth / 2) - islandCenterX;
-    const centerOffsetY = (window.innerHeight / 2) - islandCenterY;
+        const viewport = viewportRef.current;
+        let rafId;
+
+        const scheduleUpdate = () => {
+            if (rafId) return; // Already scheduled
+            rafId = requestAnimationFrame(() => {
+                rafId = null;
+                setViewportVersion(v => v + 1);
+            });
+        };
+
+        viewport.on('moved', scheduleUpdate);
+        viewport.on('zoomed', scheduleUpdate);
+
+        return () => {
+            viewport.off('moved', scheduleUpdate);
+            viewport.off('zoomed', scheduleUpdate);
+            if (rafId) cancelAnimationFrame(rafId);
+        };
+    }, [viewportRef]);
 
     // Helper function to animate tile removal
     const animateTileRemoval = useCallback((tile, onComplete) => {
@@ -484,10 +510,12 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
 
     // Render tiles with viewport culling
     const tileElements = useMemo(() => {
+        const viewport = viewportRef?.current;
+
         // Filter tiles by viewport visibility
         const visibleTiles = currentTiles.filter(tile => {
             const { x: worldX, y: worldY } = gridToWorld(tile.x, tile.y);
-            return isTileInViewport(worldX, worldY, centerOffsetX, centerOffsetY);
+            return isTileInViewport(worldX, worldY, viewport);
         });
 
         return visibleTiles.map((tile) => {
@@ -503,16 +531,18 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
                 />
             );
         });
-    }, [currentTiles, centerOffsetX, centerOffsetY]);
+    }, [currentTiles, viewportRef, viewportVersion]);
 
     // Render decorations with viewport culling
     const decorationElements = useMemo(() => {
         if (!currentDecorations || currentDecorations.length === 0) return [];
 
+        const viewport = viewportRef?.current;
+
         // Filter decorations by viewport visibility
         const visibleDecorations = currentDecorations.filter(decoration => {
             const { x: worldX, y: worldY } = gridToWorld(decoration.gridX, decoration.gridY);
-            return isTileInViewport(worldX, worldY, centerOffsetX, centerOffsetY);
+            return isTileInViewport(worldX, worldY, viewport);
         });
 
         return visibleDecorations.map((decoration) => (
@@ -524,12 +554,12 @@ export function IslandRenderer({ islandData, x = 0, y = 0 }) {
                 spriteRefs={spriteRefsMap}
             />
         ));
-    }, [currentDecorations, centerOffsetX, centerOffsetY]);
+    }, [currentDecorations, viewportRef, viewportVersion]);
 
     return (
         <container
-            x={x + centerOffsetX}
-            y={y + centerOffsetY}
+            x={x}
+            y={y}
             sortableChildren
             interactiveChildren={false}
         >
