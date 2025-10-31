@@ -1,23 +1,21 @@
 /**
- * PricePoller - Polls Birdseye API for token price and updates MC
+ * PricePoller - Polls BitQuery GraphQL API for Four.meme token price and updates MC
  */
-
-import axios from 'axios';
 
 export class PricePoller {
     constructor(gameState, networkManager) {
         this.gameState = gameState;
         this.networkManager = networkManager;
-        this.address = process.env.DEFAULT_TOKEN_ADDRESS || '...pump';
+        this.address = process.env.DEFAULT_TOKEN_ADDRESS || 'coming soon';
         this.isPolling = false;
         this.pollInterval = null;
         this.POLL_INTERVAL_MS = 1300; // 1300ms polling interval
-        this.API_KEY = process.env.BIRDSEYE_API_KEY || '1ed9779f160b4cdf813845d165923023';
+        this.API_KEY = process.env.BITQUERY_API_KEY;
         this.lastPrice = null;
     }
 
     /**
-     * Start polling the Birdseye API
+     * Start polling the BitQuery API
      */
     start() {
         if (this.isPolling) {
@@ -25,13 +23,13 @@ export class PricePoller {
             return;
         }
 
-        console.log(`🚀 Starting price polling for address: ${this.address}`);
+        console.log(`🚀 Starting price polling for Four.meme token: ${this.address}`);
         this.isPolling = true;
 
         // Make initial request immediately
         this.fetchPrice();
 
-        // Then poll every 1100ms
+        // Then poll every 1300ms
         this.pollInterval = setInterval(() => {
             this.fetchPrice();
         }, this.POLL_INTERVAL_MS);
@@ -77,32 +75,67 @@ export class PricePoller {
     }
 
     /**
-     * Fetch price from Birdseye API
+     * Fetch price from BitQuery GraphQL API
      */
     async fetchPrice() {
         try {
-            const response = await axios.get('https://public-api.birdeye.so/defi/price', {
-                params: {
-                    address: this.address,
-                    ui_amount_mode: 'raw'
-                },
-                headers: {
-                    'X-API-KEY': this.API_KEY,
-                    'x-chain': 'bsc'
+            // Build GraphQL query for Four.meme token price
+            const query = `
+            {
+                Trading {
+                    Pairs(
+                        where: {
+                            Price: {IsQuotedInUsd: true}
+                            Market: {
+                                Protocol: {is: "fourmeme_v1"}
+                                Network: {is: "Binance Smart Chain"}
+                            }
+                            Token: {Address: {is: "${this.address}"}}
+                        }
+                    ) {
+                        Price {
+                            Average {Mean}
+                        }
+                    }
                 }
-            });
+            }
+            `;
 
-            if (response.data && response.data.data && response.data.data.value !== undefined) {
-                const price = response.data.data.value;
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.API_KEY}`
+                },
+                body: JSON.stringify({ query })
+            };
 
-                // Convert price to MC value (multiply by 1,000,000 for better scale)
+            const response = await fetch('https://streaming.bitquery.io/graphql', options);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            // Check for GraphQL errors
+            if (result.errors) {
+                console.error('❌ GraphQL errors:', result.errors);
+                return;
+            }
+
+            // BitQuery returns: { data: { Trading: { Pairs: [{ Price: { Average: { Mean: number } } }] } } }
+            const pairs = result.data?.Trading?.Pairs;
+
+            if (pairs && pairs.length > 0 && pairs[0].Price?.Average?.Mean !== undefined) {
+                const price = pairs[0].Price.Average.Mean;
+
+                // Convert price to MC value (multiply by 1,000,000,000 for better scale)
                 const mcValue = Math.floor(price * 1000000000);
-
-                console.log(price);
 
                 // Update MC if price changed
                 if (this.lastPrice !== price) {
-                    console.log(`💰 Price updated: ${price} → MC: ${mcValue.toLocaleString()}`);
+                    console.log(`💰 Price updated: $${price} → MC: ${mcValue.toLocaleString()}`);
                     this.gameState.setMc(mcValue);
                     this.lastPrice = price;
 
@@ -114,14 +147,10 @@ export class PricePoller {
                     }
                 }
             } else {
-                console.warn('⚠️ Invalid API response format:', response.data);
+                console.warn('⚠️ No trading pairs found for token:', this.address);
             }
         } catch (error) {
-            console.error('❌ Error fetching price from Birdseye API:', error.message);
-            if (error.response) {
-                console.error('Response status:', error.response.status);
-                console.error('Response data:', error.response.data);
-            }
+            console.error('❌ Error fetching price from BitQuery API:', error.message);
         }
     }
 

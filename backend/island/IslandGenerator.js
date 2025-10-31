@@ -12,7 +12,8 @@ import {
     SHALLOW_WATER_EDGES,
     SHALLOW_WATER_CORNERS,
     DECORATION_TYPES,
-    WALK_CONFIG
+    WALK_CONFIG,
+    TILE_CALCULATION_TIERS
 } from './islandConfig.js';
 import { BiomeGenerator } from './BiomeGenerator.js';
 
@@ -157,11 +158,23 @@ export class IslandGenerator {
 
     /**
      * Calculate target number of land tiles based on MC
-     * 1 tile per 400 MC, capped at maximum tiles that fit in 80x80 grid
+     * Progressive scaling:
+     * - MC < 100k: 1 tile per 250 MC (faster growth)
+     * - MC >= 100k: 400 base tiles + 1 tile per 400 MC for remaining MC (slower growth)
      */
     static calculateTargetLandTiles(mc) {
-        const tilesPerMC = 1 / 400;  // 1 tile per 400 MC
-        const targetTiles = Math.floor(mc * tilesPerMC);
+        let targetTiles;
+
+        if (mc < TILE_CALCULATION_TIERS.THRESHOLD) {
+            // Tier 1: 1 tile per 250 MC
+            targetTiles = Math.floor(mc / TILE_CALCULATION_TIERS.TIER_1_RATIO);
+        } else {
+            // Tier 2: Base 400 tiles + additional at 1 per 400 MC
+            const baseTiles = TILE_CALCULATION_TIERS.TIER_1_BASE_TILES;
+            const remainingMC = mc - TILE_CALCULATION_TIERS.THRESHOLD;
+            const additionalTiles = Math.floor(remainingMC / TILE_CALCULATION_TIERS.TIER_2_RATIO);
+            targetTiles = baseTiles + additionalTiles;
+        }
 
         // Cap at reasonable maximum (80% of 80x80 grid = 5120 tiles)
         const maxTiles = Math.floor(80 * 80 * 0.8);

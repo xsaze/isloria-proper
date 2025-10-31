@@ -237,6 +237,15 @@ export const BIOME_CONFIG = {
     }
 };
 
+// Tile calculation tier configuration
+// Progressive scaling: faster growth for early islands, slower growth for expensive ones
+export const TILE_CALCULATION_TIERS = {
+    THRESHOLD: 100000,      // MC threshold for tier switch (100k)
+    TIER_1_RATIO: 250,      // MC per tile for < 100k (1 tile per 250 MC)
+    TIER_2_RATIO: 400,      // MC per tile for >= 100k (1 tile per 400 MC)
+    TIER_1_BASE_TILES: 400  // Base tiles from first 100k MC (100,000 / 250)
+};
+
 // Isometric tile dimensions (in pixels) - MUST match frontend IslandRenderer TILE_CONFIG
 // Frontend uses TILE_WIDTH: 64, TILE_HEIGHT: 32 for isometric spacing
 // Tiles are rendered with scale=2, but these values are the PRE-SCALE isometric dimensions

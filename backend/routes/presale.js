@@ -77,7 +77,7 @@ router.post('/purchase', (req, res) => {
   const challenge = {
     challenge_id: challengeId,
     amount: totalAmount.toString(),
-    currency: process.env.TOKEN_SYMBOL || 'ISLORIA',
+    currency: process.env.TOKEN_SYMBOL || 'BNRA',
     decimals: 18,
     chain: 'bsc',
     payment_address: process.env.PRESALE_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000',
