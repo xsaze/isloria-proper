@@ -18,6 +18,9 @@ export class CustomViewport extends BaseViewport {
       events: pixiState.pixiApp.renderer.events
     });
 
+    // Detect mobile device
+    const isMobile = window.innerWidth <= 768;
+
     // Configure default plugins for camera controls
     this.drag({
       mouseButtons: 'left',
@@ -48,7 +51,7 @@ export class CustomViewport extends BaseViewport {
       minSpeed: 0.01
     })
     .clampZoom({
-      minScale: 0.5,
+      minScale: isMobile ? 0.15 : 0.5,  // Allow more zoom-out on mobile
       maxScale: 2.0
     });
   }

@@ -13,6 +13,7 @@ import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
 import { OceanBackground } from "./OceanBackground";
 import { Roadmap } from "./Roadmap";
+import { MobileTutorialOverlay } from "./MobileTutorialOverlay";
 import { tileLoader } from '../helpers/TileLoader';
 import { CustomViewport } from '../helpers/CustomViewport';
 import { pixiState } from '../helpers/pixiState';
@@ -49,6 +50,24 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Control panel minimize state
   const [isPanelMinimized, setIsPanelMinimized] = useState(false);
+
+  // Mobile tutorial overlay state
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  // Check if tutorial should be shown on mobile
+  useEffect(() => {
+    const isMobile = window.innerWidth <= 768;
+    const hasSeenTutorial = localStorage.getItem('hasSeenMobileTutorial');
+
+    if (isMobile && !hasSeenTutorial && isAppReady) {
+      setShowTutorial(true);
+    }
+  }, [isAppReady]);
+
+  const handleTutorialDismiss = () => {
+    setShowTutorial(false);
+    localStorage.setItem('hasSeenMobileTutorial', 'true');
+  };
 
   // Load tiles on mount
   useEffect(() => {
@@ -164,25 +183,24 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Handle double click/tap to reset viewport
   useEffect(() => {
-    if (!viewportRef.current) return;
+    if (!viewportRef.current || !isAppReady) return;
 
     const viewport = viewportRef.current;
     let lastClickTime = 0;
 
-    const handleReset = () => {
-      // Reset viewport to initial position and zoom with smooth animation
-      viewport.moveCenter(5000, 5000);
-      viewport.setZoom(1.0, true); // true for smooth animation
-    };
-
-    // Handle click/tap to detect double click/tap
     const handleClick = () => {
       const currentTime = Date.now();
       const timeDiff = currentTime - lastClickTime;
 
-      // If two clicks/taps within 300ms, it's a double click/tap
-      if (timeDiff < 300 && timeDiff > 0) {
-        handleReset();
+      // If two clicks/taps within 400ms, it's a double click/tap
+      if (timeDiff < 400 && timeDiff > 0) {
+        // Animate viewport to center with smooth transition
+        viewport.animate({
+          position: { x: 5000, y: 5000 },
+          scale: 1.0,
+          time: 500,
+          ease: 'easeInOutSine'
+        });
         lastClickTime = 0; // Reset to prevent triple click
       } else {
         lastClickTime = currentTime;
@@ -195,7 +213,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     return () => {
       viewport.off('clicked', handleClick);
     };
-  }, []);
+  }, [isAppReady]);
 
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
@@ -246,6 +264,12 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     <>
       {/* Roadmap */}
       <Roadmap />
+
+      {/* Mobile Tutorial Overlay */}
+      <MobileTutorialOverlay
+        isVisible={showTutorial}
+        onDismiss={handleTutorialDismiss}
+      />
 
       {/* MC Control Interface - Hidden in production */}
       {import.meta.env.DEV && (
