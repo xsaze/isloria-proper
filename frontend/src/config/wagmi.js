@@ -3,14 +3,19 @@ import { bsc } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 
 // WalletConnect Project ID - You'll need to get this from https://cloud.walletconnect.com/
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID'
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
+
+// Build connectors array conditionally
+const connectors = [injected()]
+
+// Only add WalletConnect if we have a valid project ID
+if (projectId && projectId !== 'YOUR_PROJECT_ID') {
+  connectors.push(walletConnect({ projectId }))
+}
 
 export const config = createConfig({
   chains: [bsc],
-  connectors: [
-    injected(),
-    walletConnect({ projectId }),
-  ],
+  connectors,
   transports: {
     [bsc.id]: http(),
   },

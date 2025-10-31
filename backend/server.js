@@ -24,6 +24,8 @@ const allowedOrigins = [
   process.env.CORS_ORIGIN || 'https://binaria.fun',
   'https://island.binaria.fun',
   'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175', // Vite dev server (may use different ports)
   'http://island.localhost:5173' // Vite dev server
 ];
 
@@ -34,7 +36,8 @@ app.use(cors({
     } else {
       callback(new Error('Not allowed by CORS'));
     }
-  }
+  },
+  exposedHeaders: ['X-PAYMENT', 'X-Payment-Required'] // Allow frontend to read x402 headers
 }));
 app.use(express.json()); // Parse JSON bodies
 

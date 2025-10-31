@@ -23,18 +23,13 @@ export default function PresalePage() {
   const fetchPresaleStatus = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-      console.log('🔍 DEBUG: Fetching from:', apiUrl)
-      console.log('🔍 DEBUG: All env vars:', import.meta.env)
       const res = await fetch(`${apiUrl}/api/presale/status`)
-      console.log('🔍 DEBUG: Response status:', res.status)
       if (res.ok) {
         const data = await res.json()
-        console.log('🔍 DEBUG: Response data:', data)
         setPresaleData(data)
       }
     } catch (err) {
-      console.error('❌ Failed to fetch presale status:', err)
-      console.error('❌ Error details:', err.message, err.stack)
+      return
     }
   }
 
