@@ -14,15 +14,34 @@ import { GameState } from './game/GameState.js';
 import { GameLoop } from './game/GameLoop.js';
 import { NetworkManager } from './game/NetworkManager.js';
 import { PricePoller } from './services/PricePoller.js';
+import presaleRoutes from './routes/presale.js';
 
 // Setup Express
 const app = express();
-app.use(cors());
+
+// CORS configuration - allow both main domain and presale subdomain
+const allowedOrigins = [
+  process.env.CORS_ORIGIN || 'https://binaria.fun',
+  'https://island.binaria.fun',
+  'http://localhost:5173', // Vite dev server
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+app.use(express.json()); // Parse JSON bodies
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "*"
+    origin: allowedOrigins,
+    methods: ['GET', 'POST']
   }
 });
 
@@ -42,6 +61,9 @@ networkManager.pricePoller = pricePoller;
 
 // Initialize network manager (sets up socket handlers)
 networkManager.initialize();
+
+// Setup presale routes
+app.use('/api/presale', presaleRoutes);
 
 // Start the game loop
 gameLoop.start();

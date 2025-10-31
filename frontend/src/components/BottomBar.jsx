@@ -12,6 +12,7 @@ export const BottomBar = ({ stats = {} }) => {
 
   const [displayMC, setDisplayMC] = useState('...');
   const [isMobile, setIsMobile] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
 
   useEffect(() => {
     if (marketCap !== null && marketCap !== undefined) {
@@ -32,6 +33,19 @@ export const BottomBar = ({ stats = {} }) => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Copy CA to clipboard
+  const handleCopyCA = async () => {
+    if (tokenAddress && tokenAddress !== 'coming soon') {
+      try {
+        await navigator.clipboard.writeText(tokenAddress);
+        setShowCopied(true);
+        setTimeout(() => setShowCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    }
+  };
 
   // Social links component (reusable)
   const socialLinks = (
@@ -82,9 +96,20 @@ export const BottomBar = ({ stats = {} }) => {
         {/* Stats section */}
         <div className="bottom-bar-section stats">
           {/* CA stat - always visible */}
-          <div className="stat-item">
+          <div className="stat-item ca-container">
             <span className="stat-label">CA </span>
-            <span className="stat-value">{tokenAddress}</span>
+            <span
+              className="stat-value ca-value"
+              onClick={handleCopyCA}
+              title="Click to copy"
+            >
+              {tokenAddress}
+            </span>
+            {showCopied && (
+              <div className="copied-popup">
+                Copied to clipboard!
+              </div>
+            )}
           </div>
 
           {/* Desktop: Show divider and market cap */}
