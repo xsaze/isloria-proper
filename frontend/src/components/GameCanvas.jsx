@@ -17,6 +17,7 @@ import { MobileTutorialOverlay } from "./MobileTutorialOverlay";
 import { tileLoader } from '../helpers/TileLoader';
 import { CustomViewport } from '../helpers/CustomViewport';
 import { pixiState } from '../helpers/pixiState';
+import { getDefaultZoom } from '../helpers/viewportZoom';
 import { useEffect, useState, useMemo, useRef } from 'react';
 
 
@@ -137,6 +138,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
     // Mobile needs double-resize to ensure dimensions are correct
     const isMobile = window.innerWidth <= 768;
+    const defaultZoom = getDefaultZoom(mc, isMobile);
 
     const timer = setTimeout(() => {
       if (viewportRef.current) {
@@ -149,25 +151,47 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
             if (viewportRef.current) {
               viewportRef.current.resize(window.innerWidth, window.innerHeight);
 
-              // Center viewport on ocean center (5000, 5000) where island is positioned
+              // Center viewport on ocean center (5000, 5000) with default zoom 1.0
               viewportRef.current.moveCenter(5000, 5000);
               viewportRef.current.setZoom(1.0, false);
 
               hasInitializedViewport.current = true; // Mark as initialized
+
+              // Immediately animate to the MC-based zoom level for smooth transition
+              setTimeout(() => {
+                if (viewportRef.current) {
+                  viewportRef.current.animate({
+                    scale: defaultZoom,
+                    time: 500,
+                    ease: 'easeInOutSine'
+                  });
+                }
+              }, 100);
             }
           }, 50);
         } else {
-          // Desktop: Center immediately after resize
+          // Desktop: Center and set default zoom 1.0
           viewportRef.current.moveCenter(5000, 5000);
           viewportRef.current.setZoom(1.0, false);
 
           hasInitializedViewport.current = true; // Mark as initialized
+
+          // Immediately animate to the MC-based zoom level for smooth transition
+          setTimeout(() => {
+            if (viewportRef.current) {
+              viewportRef.current.animate({
+                scale: defaultZoom,
+                time: 500,
+                ease: 'easeInOutSine'
+              });
+            }
+          }, 100);
         }
       }
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [isAppReady, islandData, tilesLoaded]);
+  }, [isAppReady, islandData, tilesLoaded, mc]);
 
   // Handle window resize
   useEffect(() => {
@@ -186,6 +210,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     if (!viewportRef.current || !isAppReady) return;
 
     const viewport = viewportRef.current;
+    const isMobile = window.innerWidth <= 768;
     let lastClickTime = 0;
 
     const handleClick = () => {
@@ -194,10 +219,13 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
       // If two clicks/taps within 400ms, it's a double click/tap
       if (timeDiff < 400 && timeDiff > 0) {
+        // Calculate default zoom based on current MC
+        const defaultZoom = getDefaultZoom(mc, isMobile);
+
         // Animate viewport to center with smooth transition
         viewport.animate({
           position: { x: 5000, y: 5000 },
-          scale: 1.0,
+          scale: defaultZoom,
           time: 500,
           ease: 'easeInOutSine'
         });
@@ -213,7 +241,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     return () => {
       viewport.off('clicked', handleClick);
     };
-  }, [isAppReady]);
+  }, [isAppReady, mc]);
 
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
