@@ -23,7 +23,7 @@ export class NpcPhysics {
 
         // STUCK DETECTION: Track position history to detect truly stuck NPCs
         this.positionHistory = new Map();  // { npcId: { x, y, timestamp } }
-        this.STUCK_CHECK_INTERVAL = 2000;  // 5 seconds
+        this.STUCK_CHECK_INTERVAL = 3500;  // 5 seconds
         this.STUCK_DISTANCE_THRESHOLD = 5;  // pixels - if moved less than this in 5 sec, stuck
 
         // NPC FOOT OFFSETS: For accurate walkability checks (check feet, not center)

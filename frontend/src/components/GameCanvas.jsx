@@ -148,7 +148,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [isAppReady]);
+  }, [isAppReady, islandData, tilesLoaded]);
 
   // Handle window resize
   useEffect(() => {
