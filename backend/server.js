@@ -23,7 +23,8 @@ const app = express();
 const allowedOrigins = [
   process.env.CORS_ORIGIN || 'https://binaria.fun',
   'https://island.binaria.fun',
-  'http://localhost:5173', // Vite dev server
+  'http://localhost:5173',
+  'http://island.localhost:5173' // Vite dev server
 ];
 
 app.use(cors({
