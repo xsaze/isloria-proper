@@ -19,7 +19,7 @@ body {
   font-family: 'CustomFont', 'Georgia', 'Times New Roman', serif;
   background: #0a0a0f;
   color: #f4e4c1;
-  overflow: hidden;
+  overflow: auto;
   image-rendering: pixelated;
 }
 
