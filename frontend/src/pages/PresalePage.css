@@ -62,7 +62,8 @@
 
 /* Body styling */
 .presale-body {
-  min-height: 100vh !important;
+  min-height: 100vh;
+  height: auto;
   background-color: #0a0a0f;
   color: #f4e4c1;
   font-family: Georgia, 'Times New Roman', serif;
@@ -70,6 +71,9 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   padding-bottom: 40px; /* Space for footer */
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header styling */
@@ -314,12 +318,23 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  /* Ensure body is scrollable on mobile */
+  .presale-body {
+    height: 100%;
+    min-height: 100vh;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    touch-action: pan-y;
+  }
+
   .presale-title {
     font-size: 16px;
   }
 
   .presale-header {
     padding: 12px 16px;
+    position: sticky;
+    top: 0;
   }
 
   .presale-header > div {
@@ -345,6 +360,8 @@
   /* Adjust main padding on mobile */
   main {
     padding: 16px 12px !important;
+    flex: 1;
+    overflow: visible;
   }
 
   /* Better touch targets on mobile */

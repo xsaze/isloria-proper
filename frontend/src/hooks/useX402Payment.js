@@ -1,19 +1,22 @@
 import { useState } from 'react'
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi'
 import { parseEther } from 'viem'
+import { bscTestnet } from 'viem/chains'
 
 /**
  * Hook to handle x402 payment protocol flow with native tBNB
  *
  * Flow:
- * 1. Request purchase from server
- * 2. Server responds with 402 + payment challenge
- * 3. Parse challenge and execute native BNB transfer
- * 4. Submit tx hash to server for verification
- * 5. Server verifies transaction on BSC Testnet
+ * 1. Check user is on correct network (BSC Testnet)
+ * 2. Request purchase from server
+ * 3. Server responds with 402 + payment challenge
+ * 4. Parse challenge and execute native BNB transfer
+ * 5. Submit tx hash to server for verification
+ * 6. Server verifies transaction on BSC Testnet
  */
 export function useX402Payment() {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, chain } = useAccount()
+  const { switchChain } = useSwitchChain()
   const { sendTransaction, data: hash, isPending: isWriting, error: writeError } = useSendTransaction()
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash })
 
@@ -29,6 +32,24 @@ export function useX402Payment() {
       setError('Please connect your wallet first')
       setStatus('error')
       return
+    }
+
+    // Check if user is on BSC Testnet (Chain ID 97)
+    const currentChainId = chain?.id
+    if (currentChainId !== bscTestnet.id) {
+      setStatus('error')
+      setError(`Wrong network! Please switch to BSC Testnet`)
+
+      // Attempt to switch network automatically
+      try {
+        await switchChain({ chainId: bscTestnet.id })
+        // Network switched successfully, clear error and continue
+        setError(null)
+        setStatus('idle')
+      } catch (err) {
+        setError('Please switch to BSC Testnet in your wallet')
+        return
+      }
     }
 
     try {
@@ -55,19 +76,6 @@ export function useX402Payment() {
         const challenge = JSON.parse(paymentChallenge)
         setChallengeData(challenge)
 
-        console.log('x402 Payment Challenge:', challenge)
-        /*
-        Expected challenge format:
-        {
-          "challenge_id": "uuid",
-          "amount": "0.01",
-          "currency": "tBNB",
-          "chain": "bsc-testnet",
-          "payment_address": "0x...",
-          "expires_at": timestamp
-        }
-        */
-
         // Step 3: Execute native tBNB transfer
         setStatus('paying')
 
@@ -83,7 +91,6 @@ export function useX402Payment() {
       } else if (res.ok) {
         // No payment required (whitelist, free mint, etc.)
         const data = await res.json()
-        console.log('Purchase confirmed without payment:', data)
         setStatus('confirmed')
         return data
       } else {
@@ -93,7 +100,6 @@ export function useX402Payment() {
       }
 
     } catch (err) {
-      console.error('x402 Purchase Error:', err)
       setError(err.message || 'Purchase failed')
       setStatus('error')
     }
@@ -123,12 +129,10 @@ export function useX402Payment() {
       }
 
       const data = await res.json()
-      console.log('Payment verified:', data)
       setStatus('confirmed')
       return data
 
     } catch (err) {
-      console.error('Payment verification error:', err)
       setError(err.message || 'Verification failed')
       setStatus('error')
     }

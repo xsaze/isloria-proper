@@ -1,7 +1,7 @@
 .presale-container {
   position: fixed;
   top: 10px;
-  right: 130px; /* Roadmap button width (~95px) + 8px gap + 8px (padding compensation) */
+  right: 116px; /* Roadmap button width (~95px) + 8px gap + 8px (padding compensation) */
   z-index: 999;
 }
 
@@ -11,7 +11,7 @@
   color: #3d2817;
   border-radius: 8px;
   cursor: pointer;
-  padding: 10px 20px;
+  padding: 6px 14px;
   font-size: 14px;
   font-weight: bold;
   font-family: 'Georgia', 'Times New Roman', serif;

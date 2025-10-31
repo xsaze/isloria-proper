@@ -105,13 +105,6 @@ router.post('/purchase', (req, res) => {
     }
   }
 
-  console.log('📄 x402 Payment Challenge Created:', {
-    challengeId,
-    quantity,
-    amount: totalAmount,
-    buyer: address,
-  });
-
   // Return HTTP 402 with x402 payment challenge
   res.status(402)
     .set('X-PAYMENT', JSON.stringify(challenge))
@@ -158,12 +151,6 @@ router.post('/verify', async (req, res) => {
   if (challenge.buyer_address.toLowerCase() !== address.toLowerCase()) {
     return res.status(403).json({ error: 'Address mismatch' });
   }
-
-  console.log('🔍 Verifying payment:', {
-    challenge_id,
-    tx_hash,
-    address,
-  });
 
   try {
     // Step 1: Verify transaction exists and is successful on BSC Testnet
@@ -220,16 +207,7 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    console.log('✅ Transaction verified on-chain:', {
-      hash: tx_hash,
-      from: transaction.from,
-      to: transaction.to,
-      value: transaction.value.toString(),
-      status: receipt.status,
-    });
-
   } catch (error) {
-    console.error('❌ Blockchain verification error:', error);
     return res.status(500).json({
       error: 'Failed to verify transaction on blockchain',
       details: error.message
@@ -251,12 +229,6 @@ router.post('/verify', async (req, res) => {
 
   // Clean up challenge
   presaleState.challenges.delete(challenge_id);
-
-  console.log('✅ Purchase confirmed:', {
-    address: purchase.address,
-    quantity: purchase.quantity,
-    totalSold: presaleState.sold,
-  });
 
   // TODO: In production:
   // - Mint NFT or assign game access
