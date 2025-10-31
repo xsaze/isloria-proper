@@ -13,7 +13,6 @@ import { Npc } from "./Npc";
 import { IslandRenderer } from "./IslandRenderer";
 import { OceanBackground } from "./OceanBackground";
 import { Roadmap } from "./Roadmap";
-import { DebugOverlays } from "./DebugOverlays";
 import { tileLoader } from '../helpers/TileLoader';
 import { CustomViewport } from '../helpers/CustomViewport';
 import { pixiState } from '../helpers/pixiState';
@@ -50,9 +49,6 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
 
   // Control panel minimize state
   const [isPanelMinimized, setIsPanelMinimized] = useState(false);
-
-  // Debug overlays state (toggle with 'D' key)
-  const [showDebugOverlays, setShowDebugOverlays] = useState(true);
 
   // Load tiles on mount
   useEffect(() => {
@@ -166,18 +162,6 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Handle debug overlay toggle (press 'D' key)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'd' || e.key === 'D') {
-        setShowDebugOverlays(prev => !prev);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
     if (socket) {
@@ -229,7 +213,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
       <Roadmap />
 
       {/* MC Control Interface - Hidden in production */}
-      {import.meta.env.VITE_NODE_ENV !== 'production' && (
+      {import.meta.env.DEV && (
       <div style={{
         position: 'absolute',
         top: 10,
@@ -517,14 +501,6 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
                     />
                   );
                 })}
-
-                {/* Debug Overlays - Toggle with 'D' key */}
-                {showDebugOverlays && (
-                  <DebugOverlays
-                    islandData={islandData}
-                    viewportRef={viewportRef}
-                  />
-                )}
               </container>
             </pixiViewport>
           )}
