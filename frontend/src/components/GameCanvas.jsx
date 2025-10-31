@@ -120,9 +120,8 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
       return;
     }
 
-    // Mobile needs longer delay and double-resize to ensure dimensions are correct
+    // Mobile needs double-resize to ensure dimensions are correct
     const isMobile = window.innerWidth <= 768;
-    const delay = isMobile ? 200 : 50;
 
     const timer = setTimeout(() => {
       if (viewportRef.current) {
@@ -150,7 +149,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
           hasInitializedViewport.current = true; // Mark as initialized
         }
       }
-    }, delay);
+    }, 50);
 
     return () => clearTimeout(timer);
   }, [isAppReady]);
