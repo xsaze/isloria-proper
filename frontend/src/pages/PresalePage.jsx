@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { useX402Payment } from '../hooks/useX402Payment'
 import './PresalePage.css'
@@ -15,10 +15,46 @@ export default function PresalePage() {
     price: 100000,
   })
 
-  // Fetch presale status on mount
+  // Polling state
+  const [isPolling, setIsPolling] = useState(true)
+  const pollingIntervalRef = useRef(null)
+
+  // Fetch presale status on mount and set up 1-second polling
   useEffect(() => {
-    fetchPresaleStatus()
+    fetchPresaleStatus() // Initial fetch
+
+    // Start polling every 1 second
+    if (isPolling) {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchPresaleStatus()
+      }, 1000) // 1 second
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
+    }
+  }, [isPolling])
+
+  // Stop polling when page is hidden (battery optimization)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPolling(!document.hidden)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
+
+  // Refresh immediately after successful purchase
+  useEffect(() => {
+    if (status === 'confirmed') {
+      fetchPresaleStatus()
+    }
+  }, [status])
 
   const fetchPresaleStatus = async () => {
     try {
@@ -109,7 +145,7 @@ export default function PresalePage() {
             {/* Price Info */}
             <div className="info-section">
               <div className="stat-label" style={{ marginBottom: '4px' }}>price per island</div>
-              <div className="stat-value" style={{ fontSize: '28px', color: '#22c55e' }}>{presaleData.price} $BNRA</div>
+              <div className="stat-value" style={{ fontSize: '28px', color: '#22c55e' }}>{presaleData.price} tBNB</div>
             </div>
 
             {/* Purchase Buttons */}
@@ -148,12 +184,12 @@ export default function PresalePage() {
                 {txHash && (
                   <div style={{ marginTop: '8px', fontSize: '10px', opacity: 0.8 }}>
                     <a
-                      href={`https://bscscan.com/tx/${txHash}`}
+                      href={`https://testnet.bscscan.com/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="footer-link"
                     >
-                      View transaction on BscScan →
+                      View transaction on BscScan Testnet →
                     </a>
                   </div>
                 )}
@@ -165,7 +201,7 @@ export default function PresalePage() {
               <div className="info-title">⚡ Payment Protocol</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 <li className="info-text" style={{ marginBottom: '4px' }}>◆ Powered by x402 internet-native payments</li>
-                <li className="info-text" style={{ marginBottom: '4px' }}>◆ Direct token transfers on BSC (Binance Smart Chain)</li>
+                <li className="info-text" style={{ marginBottom: '4px' }}>◆ Direct payments on BSC Testnet with tBNB</li>
                 <li className="info-text" style={{ marginBottom: '4px' }}>◆ Instant settlement and verification</li>
                 <li className="info-text">◆ Secure and transparent on-chain transactions</li>
               </ul>

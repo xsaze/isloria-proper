@@ -1,21 +1,20 @@
 import { useState } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseUnits } from 'viem'
-import { TOKEN_ADDRESS, ERC20_ABI } from '../config/wagmi'
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
+import { parseEther } from 'viem'
 
 /**
- * Hook to handle x402 payment protocol flow
+ * Hook to handle x402 payment protocol flow with native tBNB
  *
  * Flow:
  * 1. Request purchase from server
  * 2. Server responds with 402 + payment challenge
- * 3. Parse challenge and execute token transfer
+ * 3. Parse challenge and execute native BNB transfer
  * 4. Submit tx hash to server for verification
- * 5. Server verifies via x402 facilitator
+ * 5. Server verifies transaction on BSC Testnet
  */
 export function useX402Payment() {
   const { address, isConnected } = useAccount()
-  const { writeContract, data: hash, isPending: isWriting, error: writeError } = useWriteContract()
+  const { sendTransaction, data: hash, isPending: isWriting, error: writeError } = useSendTransaction()
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash })
 
   const [status, setStatus] = useState('idle') // idle | requesting | paying | confirming | confirmed | error
@@ -61,25 +60,22 @@ export function useX402Payment() {
         Expected challenge format:
         {
           "challenge_id": "uuid",
-          "amount": "100",
-          "currency": "YOUR_TOKEN",
-          "decimals": 18,
-          "chain": "bsc",
+          "amount": "0.01",
+          "currency": "tBNB",
+          "chain": "bsc-testnet",
           "payment_address": "0x...",
           "expires_at": timestamp
         }
         */
 
-        // Step 3: Execute token transfer
+        // Step 3: Execute native tBNB transfer
         setStatus('paying')
 
-        const amountInWei = parseUnits(challenge.amount, challenge.decimals || 18)
+        const amountInWei = parseEther(challenge.amount)
 
-        writeContract({
-          address: TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: 'transfer',
-          args: [challenge.payment_address, amountInWei],
+        sendTransaction({
+          to: challenge.payment_address,
+          value: amountInWei,
         })
 
         // Note: We'll handle confirmation in useEffect watching the tx status

@@ -1,13 +1,21 @@
 import express from 'express';
 import crypto from 'crypto';
+import { createPublicClient, http, parseEther } from 'viem';
+import { bscTestnet } from 'viem/chains';
 
 const router = express.Router();
+
+// Create BSC Testnet client for transaction verification
+const bscClient = createPublicClient({
+  chain: bscTestnet,
+  transport: http(process.env.BSC_RPC_URL || 'https://data-seed-prebsc-1-s1.binance.org:8545'),
+});
 
 // In-memory storage (replace with database in production)
 const presaleState = {
   sold: 0,
   supply: parseInt(process.env.PRESALE_TOTAL_SUPPLY) || 5000,
-  price: parseInt(process.env.PRESALE_PRICE) || 100,
+  price: parseFloat(process.env.PRESALE_PRICE) || 0.01, // Price in BNB per island
   purchases: [], // Array of { address, quantity, txHash, timestamp }
   challenges: new Map(), // challenge_id -> challenge data
 };
@@ -69,17 +77,16 @@ router.post('/purchase', (req, res) => {
     });
   }
 
-  // Calculate total cost
-  const totalAmount = quantity * presaleState.price;
+  // Calculate total cost in BNB (price is per island in BNB)
+  const totalAmount = (quantity * presaleState.price).toFixed(18);
 
   // Generate payment challenge (x402 protocol)
   const challengeId = crypto.randomUUID();
   const challenge = {
     challenge_id: challengeId,
-    amount: totalAmount.toString(),
-    currency: process.env.TOKEN_SYMBOL || 'BNRA',
-    decimals: 18,
-    chain: 'bsc',
+    amount: totalAmount,
+    currency: process.env.TOKEN_SYMBOL || 'tBNB',
+    chain: 'bsc-testnet',
     payment_address: process.env.PRESALE_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000',
     quantity,
     buyer_address: address,
@@ -158,34 +165,76 @@ router.post('/verify', async (req, res) => {
     address,
   });
 
-  // TODO: In production, verify transaction on BSC
-  // Example using viem/ethers:
-  // const provider = new ethers.providers.JsonRpcProvider(process.env.BSC_RPC_URL);
-  // const tx = await provider.getTransaction(tx_hash);
-  // Verify tx.to === challenge.payment_address
-  // Verify tx.value or token transfer amount === challenge.amount
+  try {
+    // Step 1: Verify transaction exists and is successful on BSC Testnet
+    const transaction = await bscClient.getTransaction({ hash: tx_hash });
 
-  // TODO: Call x402 facilitator /verify endpoint
-  // const facilitatorUrl = process.env.X402_FACILITATOR_URL;
-  // const verifyRes = await fetch(`${facilitatorUrl}/verify`, {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ challenge_id, tx_hash, chain: 'bsc' })
-  // });
+    if (!transaction) {
+      return res.status(400).json({ error: 'Transaction not found on blockchain' });
+    }
 
-  // For demo: Simulate successful verification
-  const verified = true;
+    // Step 2: Wait for transaction receipt to check if it was successful
+    const receipt = await bscClient.getTransactionReceipt({ hash: tx_hash });
 
-  if (!verified) {
-    return res.status(400).json({ error: 'Payment verification failed' });
+    if (!receipt) {
+      return res.status(400).json({ error: 'Transaction not yet confirmed' });
+    }
+
+    if (receipt.status !== 'success') {
+      return res.status(400).json({ error: 'Transaction failed on blockchain' });
+    }
+
+    // Step 3: Verify transaction details
+    const expectedRecipient = challenge.payment_address.toLowerCase();
+    const actualRecipient = transaction.to?.toLowerCase();
+
+    if (actualRecipient !== expectedRecipient) {
+      return res.status(400).json({
+        error: 'Payment sent to wrong address',
+        expected: expectedRecipient,
+        actual: actualRecipient
+      });
+    }
+
+    // Step 4: Verify amount (with small tolerance for precision)
+    const expectedAmount = parseEther(challenge.amount);
+    const actualAmount = transaction.value;
+
+    if (actualAmount < expectedAmount) {
+      return res.status(400).json({
+        error: 'Insufficient payment amount',
+        expected: challenge.amount,
+        actual: actualAmount.toString()
+      });
+    }
+
+    // Step 5: Verify sender matches buyer address
+    const actualSender = transaction.from.toLowerCase();
+    const expectedSender = challenge.buyer_address.toLowerCase();
+
+    if (actualSender !== expectedSender) {
+      return res.status(400).json({
+        error: 'Transaction sender does not match buyer address',
+        expected: expectedSender,
+        actual: actualSender
+      });
+    }
+
+    console.log('✅ Transaction verified on-chain:', {
+      hash: tx_hash,
+      from: transaction.from,
+      to: transaction.to,
+      value: transaction.value.toString(),
+      status: receipt.status,
+    });
+
+  } catch (error) {
+    console.error('❌ Blockchain verification error:', error);
+    return res.status(500).json({
+      error: 'Failed to verify transaction on blockchain',
+      details: error.message
+    });
   }
-
-  // TODO: Call x402 facilitator /settle endpoint
-  // const settleRes = await fetch(`${facilitatorUrl}/settle`, {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ challenge_id })
-  // });
 
   // Record purchase
   const purchase = {

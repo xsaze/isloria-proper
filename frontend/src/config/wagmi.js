@@ -1,5 +1,5 @@
 import { http, createConfig } from 'wagmi'
-import { bsc } from 'wagmi/chains'
+import { bscTestnet } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 
 // WalletConnect Project ID - You'll need to get this from https://cloud.walletconnect.com/
@@ -14,15 +14,15 @@ if (projectId && projectId !== 'YOUR_PROJECT_ID') {
 }
 
 export const config = createConfig({
-  chains: [bsc],
+  chains: [bscTestnet],
   connectors,
   transports: {
-    [bsc.id]: http(),
+    [bscTestnet.id]: http('https://data-seed-prebsc-1-s1.binance.org:8545'),
   },
 })
 
-// BSC Chain config
-export const BSC_CHAIN = bsc
+// BSC Testnet Chain config
+export const BSC_CHAIN = bscTestnet
 
 // Token contract address (placeholder - update when token is deployed)
 export const TOKEN_ADDRESS = import.meta.env.VITE_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000'
