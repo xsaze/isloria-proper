@@ -162,6 +162,41 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Handle double click/tap to reset viewport
+  useEffect(() => {
+    if (!viewportRef.current) return;
+
+    const viewport = viewportRef.current;
+    let lastClickTime = 0;
+
+    const handleReset = () => {
+      // Reset viewport to initial position and zoom with smooth animation
+      viewport.moveCenter(5000, 5000);
+      viewport.setZoom(1.0, true); // true for smooth animation
+    };
+
+    // Handle click/tap to detect double click/tap
+    const handleClick = () => {
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastClickTime;
+
+      // If two clicks/taps within 300ms, it's a double click/tap
+      if (timeDiff < 300 && timeDiff > 0) {
+        handleReset();
+        lastClickTime = 0; // Reset to prevent triple click
+      } else {
+        lastClickTime = currentTime;
+      }
+    };
+
+    // Use pixi-viewport's 'clicked' event
+    viewport.on('clicked', handleClick);
+
+    return () => {
+      viewport.off('clicked', handleClick);
+    };
+  }, []);
+
   // MC control functions - emit socket events to backend
   const increaseMc = () => {
     if (socket) {
