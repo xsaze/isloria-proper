@@ -1,5 +1,5 @@
 {
-  "name": "backend",
+  "name": "binaria-backend",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
@@ -8,11 +8,12 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["binaria", "web3", "game", "solana", "blockchain"],
+  "author": "Binaria Team",
   "license": "ISC",
-  "description": "",
+  "description": "Backend server for Binaria Web3 game - handles presale, game state, and blockchain interactions",
   "dependencies": {
+    "@solana/web3.js": "^1.98.0",
     "axios": "^1.12.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

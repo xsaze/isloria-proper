@@ -15,6 +15,7 @@ import { GameLoop } from './game/GameLoop.js';
 import { NetworkManager } from './game/NetworkManager.js';
 import { PricePoller } from './services/PricePoller.js';
 import presaleRoutes from './routes/presale.js';
+import presaleSolanaRoutes from './routes/presaleSolana.js';
 
 // Setup Express
 const app = express();
@@ -67,7 +68,12 @@ networkManager.pricePoller = pricePoller;
 networkManager.initialize();
 
 // Setup presale routes
-app.use('/api/presale', presaleRoutes);
+// PRIMARY: Solana presale with x402
+app.use('/api/presale', presaleSolanaRoutes);
+
+// BACKUP: BSC presale (kept for fallback)
+// Uncomment to switch back to BSC:
+// app.use('/api/presale', presaleRoutes);
 
 // Start the game loop
 gameLoop.start();

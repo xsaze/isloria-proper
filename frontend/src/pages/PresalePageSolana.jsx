@@ -1,33 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi'
-import { useX402Payment } from '../hooks/useX402Payment'
-import { bscTestnet } from 'wagmi/chains'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { useX402PaymentSolana } from '../hooks/useX402PaymentSolana'
+import { getExplorerUrl, SOLANA_NETWORK } from '../config/solana'
 import { BRANDING } from '../config/branding'
 import './PresalePage.css'
 
-export default function PresalePage() {
-  const { address, isConnected, chain } = useAccount()
-  const { switchChain } = useSwitchChain()
-  const { connect, connectors } = useConnect()
-  const { disconnect } = useDisconnect()
-  const { purchaseWithX402, status, error, txHash } = useX402Payment()
+// Import wallet adapter styles
+import '@solana/wallet-adapter-react-ui/styles.css'
 
-  // Track current chain ID with state to force re-renders on network change
-  const [currentChainId, setCurrentChainId] = useState(chain?.id)
-
-  // Update chainId when chain changes (this ensures UI updates)
-  useEffect(() => {
-    if (chain?.id !== currentChainId) {
-      setCurrentChainId(chain?.id)
-    }
-  }, [chain?.id, currentChainId])
-
-  const isCorrectNetwork = currentChainId === bscTestnet.id
+export default function PresalePageSolana() {
+  const { publicKey, connected } = useWallet()
+  const { purchaseWithX402, status, error, txSignature } = useX402PaymentSolana()
 
   const [presaleData, setPresaleData] = useState({
     sold: 0,
     supply: 1000,
-    price: 100000,
+    price: 0.1, // Price in SOL
   })
 
   // Polling state
@@ -88,38 +77,12 @@ export default function PresalePage() {
     purchaseWithX402(quantity)
   }
 
-  const handleSwitchNetwork = async () => {
-    try {
-      // This will trigger MetaMask popup to switch/add network
-      await switchChain({ chainId: bscTestnet.id })
-    } catch (err) {
-      console.error('Failed to switch network:', err)
-
-      // If user rejected or network doesn't exist, show helpful message
-      if (err.code === 4001) {
-        alert('Please approve the network switch in your wallet')
-      } else {
-        alert('Failed to switch network. Please add BSC Testnet manually in your wallet.')
-      }
-    }
-  }
-
   const progress = Math.round((presaleData.sold / presaleData.supply) * 100)
 
   // Format address for display
   const formatAddress = (addr) => {
     if (!addr) return ''
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`
-  }
-
-  // Get network name for display
-  const getNetworkName = () => {
-    if (!currentChainId) return 'Unknown'
-    if (currentChainId === bscTestnet.id) return 'BSC Testnet'
-    if (currentChainId === 56) return 'BSC Mainnet'
-    if (currentChainId === 1) return 'Ethereum'
-    if (currentChainId === 137) return 'Polygon'
-    return `Network ${currentChainId}`
+    return `${addr.slice(0, 4)}...${addr.slice(-4)}`
   }
 
   return (
@@ -128,84 +91,12 @@ export default function PresalePage() {
       <header className="presale-header">
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h1 className="presale-title">{BRANDING.presaleTitle}</h1>
-          <div>
-            {isConnected ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {/* Network Indicator */}
-                <div style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  backgroundColor: isCorrectNetwork ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                  color: isCorrectNetwork ? '#16a34a' : '#dc2626',
-                  border: `2px solid ${isCorrectNetwork ? '#16a34a' : '#dc2626'}`,
-                }}>
-                  {isCorrectNetwork ? '✓ ' : '⚠ '}
-                  {getNetworkName()}
-                </div>
-
-                <div className="wallet-address">
-                  {formatAddress(address)}
-                </div>
-                <button
-                  onClick={() => disconnect()}
-                  className="btn-parchment btn-danger"
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => connect({ connector: connectors[0] })}
-                className="btn-parchment"
-              >
-                Connect Wallet
-              </button>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Wallet Connection Button */}
+            <WalletMultiButton />
           </div>
         </div>
       </header>
-
-      {/* Wrong Network Warning */}
-      {isConnected && !isCorrectNetwork && (
-        <div style={{
-          maxWidth: '1200px',
-          margin: '16px auto 0',
-          padding: '16px 24px',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          border: '2px solid #dc2626',
-          borderRadius: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>⚠️</span>
-            <div>
-              <div style={{ fontWeight: 'bold', color: '#dc2626', marginBottom: '4px' }}>
-                Wrong Network Detected
-              </div>
-              <div style={{ fontSize: '13px', color: '#991b1b' }}>
-                You're connected to {getNetworkName()}. Please switch to BSC Testnet to purchase islands.
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={handleSwitchNetwork}
-            className="btn-parchment"
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#dc2626',
-              color: 'white',
-              border: 'none',
-            }}
-          >
-            Switch to BSC Testnet
-          </button>
-        </div>
-      )}
 
       {/* Main Content */}
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
@@ -239,14 +130,14 @@ export default function PresalePage() {
             {/* Price Info */}
             <div className="info-section">
               <div className="stat-label" style={{ marginBottom: '4px' }}>price per island</div>
-              <div className="stat-value" style={{ fontSize: '28px', color: '#22c55e' }}>{presaleData.price} tBNB</div>
+              <div className="stat-value" style={{ fontSize: '28px', color: '#9c27b0' }}>{presaleData.price} SOL</div>
             </div>
 
             {/* Purchase Buttons */}
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
               <button
                 onClick={() => handlePurchase(1)}
-                disabled={!isConnected || status === 'requesting' || status === 'paying'}
+                disabled={!connected || status === 'requesting' || status === 'paying'}
                 className="btn-parchment btn-success"
                 style={{ flex: 1, padding: '14px' }}
               >
@@ -254,7 +145,7 @@ export default function PresalePage() {
               </button>
               <button
                 onClick={() => handlePurchase(5)}
-                disabled={!isConnected || status === 'requesting' || status === 'paying'}
+                disabled={!connected || status === 'requesting' || status === 'paying'}
                 className="btn-parchment btn-warning"
                 style={{ flex: 1, padding: '14px' }}
               >
@@ -270,20 +161,20 @@ export default function PresalePage() {
                 'status-requesting'
               }`}>
                 {status === 'requesting' && '⏳ Requesting purchase...'}
-                {status === 'paying' && '💳 Please confirm transaction in your wallet...'}
-                {status === 'confirming' && '⏳ Confirming transaction...'}
+                {status === 'paying' && '💳 Please approve transaction in your wallet...'}
+                {status === 'confirming' && '⏳ Confirming transaction on Solana...'}
                 {status === 'confirmed' && BRANDING.purchaseSuccessMessage}
                 {status === 'error' && `✗ Error: ${error}`}
 
-                {txHash && (
+                {txSignature && (
                   <div style={{ marginTop: '8px', fontSize: '10px', opacity: 0.8 }}>
                     <a
-                      href={`https://testnet.bscscan.com/tx/${txHash}`}
+                      href={getExplorerUrl(txSignature)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="footer-link"
                     >
-                      View transaction on BscScan Testnet →
+                      View transaction on Solana Explorer →
                     </a>
                   </div>
                 )}
@@ -295,7 +186,7 @@ export default function PresalePage() {
               <div className="info-title">⚡ Payment Protocol</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 <li className="info-text" style={{ marginBottom: '4px' }}>◆ Powered by x402 internet-native payments</li>
-                <li className="info-text" style={{ marginBottom: '4px' }}>◆ Direct payments on BSC Testnet with tBNB</li>
+                <li className="info-text" style={{ marginBottom: '4px' }}>◆ Direct payments on Solana with SOL</li>
                 <li className="info-text" style={{ marginBottom: '4px' }}>◆ Instant settlement and verification</li>
                 <li className="info-text">◆ Secure and transparent on-chain transactions</li>
               </ul>
@@ -312,7 +203,7 @@ export default function PresalePage() {
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="feature-icon">🏝️</div>
                 <div>
-                  <h4 style={{ fontWeight: 'bold', color: '#22c55e', fontSize: '14px', marginBottom: '4px' }}>Private Island</h4>
+                  <h4 style={{ fontWeight: 'bold', color: '#9c27b0', fontSize: '14px', marginBottom: '4px' }}>Private Island</h4>
                   <p className="info-text">{BRANDING.islandDescription}</p>
                 </div>
               </div>
@@ -328,7 +219,7 @@ export default function PresalePage() {
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div className="feature-icon">💰</div>
                 <div>
-                  <h4 style={{ fontWeight: 'bold', color: '#d4af37', fontSize: '14px', marginBottom: '4px' }}>Play to earn</h4>
+                  <h4 style={{ fontWeight: 'bold', color: '#d4af37', fontSize: '14px', marginBottom: '4px' }}>Play to Earn</h4>
                   <p className="info-text">Earn passive income by upgrading your island and doing quests.</p>
                 </div>
               </div>
@@ -354,11 +245,11 @@ export default function PresalePage() {
               </ol>
             </div>
 
-            <div className="info-section" style={{ background: 'rgba(139, 111, 78, 0.15)' }}>
-              <div className="info-title">Why x402?</div>
+            <div className="info-section" style={{ background: 'rgba(156, 39, 176, 0.15)' }}>
+              <div className="info-title">Why Solana + x402?</div>
               <p className="info-text">
-                x402 is an open payment standard that enables instant, internet-native payments directly over HTTP.
-                It's perfect for web3 games, offering fast settlement and low fees.
+                Solana's high speed and low fees combined with x402's open payment standard enable instant,
+                internet-native payments directly over HTTP. Perfect for web3 games with fast settlement.
               </p>
             </div>
           </aside>
@@ -367,7 +258,7 @@ export default function PresalePage() {
 
       {/* Footer */}
       <footer style={{ maxWidth: '1200px', margin: '6px auto 0', padding: '2px', textAlign: 'center', fontSize: '12px', color: '#8b6f47' }}>
-        <p style={{ marginBottom: '8px' }}>{BRANDING.presaleFooterBSC}</p>
+        <p style={{ marginBottom: '8px' }}>{BRANDING.presaleFooterSolana}</p>
         <p>
           <a href={BRANDING.mainUrl} className="footer-link">
             {BRANDING.returnToMainPageText}

@@ -1,9 +1,10 @@
+import { BRANDING } from '../config/branding';
 import './Presale.css';
 
 export const Presale = () => {
   const handlePresaleClick = () => {
     // Route to island subdomain
-    window.location.href = 'https://island.binaria.fun';
+    window.location.href = BRANDING.presaleUrl;
   };
 
   return (
