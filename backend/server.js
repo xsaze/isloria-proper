@@ -38,7 +38,10 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  exposedHeaders: ['X-PAYMENT', 'X-Payment-Required'] // Allow frontend to read x402 headers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-PAYMENT', 'X-Payment-Required'], // Allow frontend to read x402 headers
+  credentials: false
 }));
 app.use(express.json()); // Parse JSON bodies
 
