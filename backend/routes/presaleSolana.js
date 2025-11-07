@@ -25,6 +25,18 @@ const presaleState = {
 };
 
 /**
+ * GET /api/presale/active
+ * Returns whether presale is currently active
+ */
+router.get('/active', (req, res) => {
+  const isActive = process.env.AUTO_START_PRICE_POLLING === 'true';
+  res.json({
+    active: isActive,
+    message: isActive ? 'Presale is active' : 'Presale is not yet active',
+  });
+});
+
+/**
  * GET /api/presale/status
  * Returns current presale statistics
  */

@@ -40,11 +40,11 @@ export const gameConfig = {
         // Each threshold spawns NPCs of the specified type near center
         thresholds: [
             { mc: 5000, npcType: 'player', count: 1 },
-            { mc: 30000, npcType: 'stag', count: 1 },
-            { mc: 70000, npcType: 'boar', count: 1 },
-            { mc: 100000, npcType: 'wolf', count: 1 },
+            { mc: 25000, npcType: 'stag', count: 1 },
+            { mc: 50000, npcType: 'boar', count: 1 },
+            { mc: 75000, npcType: 'wolf', count: 1 },
+            { mc: 85000, npcType: 'stag', count: 1 },
             { mc: 110000, npcType: 'stag', count: 1 },
-            { mc: 125000, npcType: 'stag', count: 1 },
             { mc: 135000, npcType: 'wolf', count: 1 },
             { mc: 150000, npcType: 'boar', count: 1 },
             { mc: 170000, npcType: 'wolf', count: 1 },
