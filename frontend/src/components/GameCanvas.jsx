@@ -306,6 +306,7 @@ export const GameCanvas = ({ frames, gameState, socket }) => {
       {/* MC Control Interface - Hidden in production */}
       {/* {import.meta.env.DEV && ( */}
       <div style={{
+        display: 'none',
         position: 'absolute',
         top: 10,
         left: 10,
