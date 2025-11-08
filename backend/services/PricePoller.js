@@ -88,7 +88,7 @@ export class PricePoller {
                 },
                 headers: {
                     'X-API-KEY': this.API_KEY,
-                    'x-chain': 'bsc'
+                    'x-chain': 'solana'
                 }
             });
 
