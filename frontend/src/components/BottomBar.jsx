@@ -66,7 +66,7 @@ export const BottomBar = ({ stats = {} }) => {
       <a
         href={`https://pump.fun/coin/${tokenAddress}`}
         className="social-link"
-        title="DexScreener"
+        title="Pumpfun"
         target="_blank"
         rel="noopener noreferrer"
       >
